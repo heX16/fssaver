@@ -20,11 +20,12 @@ class FilesIndex:
 
     def __init__(self):
         self.full = {}       # 0. size, md5, ctime, mtime, name - simple detection
-        self.only_hash = {}  # 1. size, md5 - detect content
+        self.only_hash = {}  # 1. size, md5 - detect by content
         self.no_hash = {}    # 2. ctime, mtime, name - detect change and move
         self.no_name = {}    # 3. size, md5, ctime, mtime - for detect file renaming
-        self.only_name = {}  # 4. name - simple detection by name
-        self.indexes = (self.full, self.only_hash, self.no_hash, self.no_name, self.only_name)
+        self.path = {}       # 4. path - full path (deletion detection)
+        # self.only_name = {}  # 5. name - simple detection by name. OFF
+        self.indexes = (self.full, self.only_hash, self.no_hash, self.no_name, self.path)
 
     def make_keys(self, data: dict, current_path: Path):
         current_name  = current_path.name
@@ -37,7 +38,7 @@ class FilesIndex:
             (data['size'], data['md5']),
             (data['ctime'], data['mtime'], current_name),
             (data['size'], data['md5'], data['ctime'], data['mtime']),
-            (current_name),
+            (str(current_path)),
         )
 
     def add_item(self, data: dict, current_path: Path):
@@ -72,20 +73,20 @@ def create_files_index(data, current_path: Path = Path()):
     return file_lists
 
 
-def search_deleted_files(initial_list, new_list):
+def search_moved_and_deleted_files(initial_list, new_list):
     deleted_files = []
-    for key, path in initial_list.full.items():
-        if key not in new_list.full:
-            deleted_files.append(path)
-    return deleted_files
-
-
-def search_moved_files(initial_list, new_list):
     moved_files = []
     for key, path in initial_list.full.items():
-        if key in new_list.full and path != new_list.full[key]:
-            moved_files.append((path, new_list.full[key]))
-    return moved_files
+        if key in new_list.full:
+            # file present
+            if path != new_list.full[key]:
+                # but path is changed - file move to other dir
+                moved_files.append((path, new_list.full[key]))
+        else:
+            # file lost - try search in other lists
+            deleted_files.append(path)
+
+    return moved_files, deleted_files
 
 
 def save_to_csv(file_path: Path, data):
@@ -112,8 +113,7 @@ if __name__ == "__main__":
             initial_file_list = create_files_index(initial_data)
             new_file_list = create_files_index(new_data)
             # Search diff
-            deleted_files = search_deleted_files(initial_file_list, new_file_list)
-            moved_files = search_moved_files(initial_file_list, new_file_list)
+            moved_files, deleted_files = search_moved_and_deleted_files(initial_file_list, new_file_list)
 
             # Print result
             if deleted_files:
