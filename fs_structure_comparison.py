@@ -41,14 +41,18 @@ class FilesIndex:
             (str(current_path)),
         )
 
+
     def add_item(self, data: dict, current_path: Path):
         keys = self.make_keys(data, current_path)
+        item = (data, current_path)
         for i, k in enumerate(self.indexes):
-            self.indexes[i][keys[i]] = current_path
+            self.indexes[i][keys[i]] = item
+
 
     def merge_files_index(self, files_index):
         for i, k in enumerate(self.indexes):
             self.indexes[i].update(files_index.indexes[i])
+
 
 def load_yaml(file_path: Path):
     try:
@@ -76,15 +80,15 @@ def create_files_index(data, current_path: Path = Path()):
 def search_moved_and_deleted_files(initial_list, new_list):
     deleted_files = []
     moved_files = []
-    for key, path in initial_list.full.items():
+    for key, data_path in initial_list.full.items():
         if key in new_list.full:
             # file present
-            if path != new_list.full[key]:
+            if data_path[1] != new_list.full[key][1]:
                 # but path is changed - file move to other dir
-                moved_files.append((path, new_list.full[key]))
+                moved_files.append((data_path[1], new_list.full[key][1]))
         else:
             # file lost - try search in other lists
-            deleted_files.append(path)
+            deleted_files.append(data_path[1])
 
     return moved_files, deleted_files
 
