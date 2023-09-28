@@ -1,2 +1,4 @@
-enum_dirs.py;enum_dirs.py NEW STATE
-run.bat;sync_files_wip\run.bat
+deleted.csv;deleted.csv
+full_run.bat;full_run.bat
+index_hash_all.yaml;index_hash_all.yaml
+moved.csv;moved.csv

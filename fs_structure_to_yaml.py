@@ -20,10 +20,6 @@ g_chuck_size = 65536
 def create_file_structure(path: Path):
     yaml_path = path / g_yaml_name
 
-    if yaml_path.exists():
-        print('EXISTS:', str(yaml_path))
-        return
-
     file_structure = {
         'type': 'directory',
         'name': path.name,
@@ -34,6 +30,11 @@ def create_file_structure(path: Path):
 
     # iterate files and collect information
     for item in path.iterdir():
+        # TODO: use `igittigitt` library for ignore
+        if item.name == '.git' and item.is_dir():
+            print('IGNORE:', item)
+            continue
+
         if item.is_dir():
             file_structure['contents'][item.name] = {
                 'type': 'directory',
@@ -45,13 +46,17 @@ def create_file_structure(path: Path):
                 'md5': calculate_md5(item),
             }
 
-    save_to_yaml(file_structure, yaml_path)
-    print('SAVE: ', str(yaml_path))
+    if yaml_path.exists():
+        print('SKIP(EXISTS):', str(yaml_path))
+    else:
+        print('SAVE:', str(yaml_path))
+        save_to_yaml(file_structure, yaml_path)
 
-    # Recursion for sub-directory
+    # Search directory in list (for recursion)
     for name, content in file_structure['contents'].items():
         if content['type'] == 'directory':
             dir_path = path / name
+            # Recursion
             create_file_structure(dir_path)
         file_structure['contents'][name] = None  # remove item from memory (for optimization)
 

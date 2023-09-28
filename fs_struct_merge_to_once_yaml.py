@@ -13,6 +13,9 @@ import yaml
 from pathlib import Path
 from docopt import docopt
 
+g_yaml_name = 'index_hash.yaml'
+
+
 def merge_contents(path_to_index_hash: Path):
     if not path_to_index_hash.exists():
         print('WARN: folder not found: ', str(path_to_index_hash))
@@ -26,10 +29,11 @@ def merge_contents(path_to_index_hash: Path):
 
     for file_name, file_data in index_data['contents'].items():
         if file_data['type'] == 'directory':
-            recursion_indexes = merge_contents(Path(path_to_index_hash).parent / file_name / 'index_hash.yaml')
+            recursion_indexes = merge_contents(Path(path_to_index_hash).parent / file_name / g_yaml_name)
             index_data['contents'][file_name] = recursion_indexes
 
     return index_data
+
 
 def load_yaml(file_path: Path):
     try:
@@ -41,16 +45,22 @@ def load_yaml(file_path: Path):
         return None
 
 
+def save_to_yaml(data, output_file):
+    with open(output_file, 'w') as f:
+        yaml.dump(data, f, default_flow_style=False)
+
+
 def main():
     arguments = docopt(__doc__)
 
     start_directory = Path(arguments['<start_directory>'])
     yaml_file = arguments['<yaml_file>'] or 'index_hash_all.yaml'
 
-    merged_structure = merge_contents(start_directory / 'index_hash.yaml')
+    merged_structure = merge_contents(start_directory / g_yaml_name)
 
     save_to_yaml(merged_structure, yaml_file)
     print(f'The merged file structure is saved in {yaml_file}')
+
 
 if __name__ == '__main__':
     main()
