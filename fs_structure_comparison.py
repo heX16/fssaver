@@ -21,32 +21,38 @@ class FilesIndex:
     def __init__(self):
         self.full = {}       # 0. size, md5, ctime, mtime, name - simple detection
         self.only_hash = {}  # 1. size, md5 - detect by content
-        self.no_hash = {}    # 2. ctime, mtime, name - detect change and move
+        self.no_hash = {}    # 2. ctime, name - detect change and move (without renaming)
         self.no_name = {}    # 3. size, md5, ctime, mtime - for detect file renaming
         self.path = {}       # 4. path - full path (deletion detection)
         # self.only_name = {}  # 5. name - simple detection by name. OFF
         self.indexes = (self.full, self.only_hash, self.no_hash, self.no_name, self.path)
 
-    def make_keys(self, data: dict, current_path: Path):
-        current_name  = current_path.name
+
+    def nomalize_data(data: dict, current_path: Path):
+        data['path']  = current_path
         data['size']  = data.get('size', -1)
         data['md5']   = data.get('md5', '')
         data['ctime'] = data.get('ctime', '')
         data['mtime'] = data.get('mtime', '')
+
+
+    def make_keys(data: dict, current_path: Path):
+        current_name  = current_path.name
         return (
             (data['size'], data['md5'], data['ctime'], data['mtime'], current_name),
             (data['size'], data['md5']),
-            (data['ctime'], data['mtime'], current_name),
+            (data['ctime'], current_name),
             (data['size'], data['md5'], data['ctime'], data['mtime']),
             (str(current_path)),
         )
 
 
     def add_item(self, data: dict, current_path: Path):
-        keys = self.make_keys(data, current_path)
-        item = (data, current_path)
+        FilesIndex.nomalize_data(data, current_path)
+        keys = FilesIndex.make_keys(data, current_path)
+        # TODO: analize dublication; skip size==0 items for 'only_hash' index.
         for i, k in enumerate(self.indexes):
-            self.indexes[i][keys[i]] = item
+            self.indexes[i][keys[i]] = data
 
 
     def merge_files_index(self, files_index):
@@ -80,15 +86,25 @@ def create_files_index(data, current_path: Path = Path()):
 def search_moved_and_deleted_files(initial_list, new_list):
     deleted_files = []
     moved_files = []
-    for key, data_path in initial_list.full.items():
+    for key, data in initial_list.full.items():
+        # search by full key
         if key in new_list.full:
             # file present
-            if data_path[1] != new_list.full[key][1]:
+            if data['path'] != new_list.full[key]['path']:
                 # but path is changed - file move to other dir
-                moved_files.append((data_path[1], new_list.full[key][1]))
+                moved_files.append((data['path'], new_list.full[key]['path']))
         else:
             # file lost - try search in other lists
-            deleted_files.append(data_path[1])
+            keys_pack = FilesIndex.make_keys(data, data['path'])
+            found = False
+            for keys_pack_i in range(1, 3):
+                if keys_pack[keys_pack_i] in new_list.indexes[keys_pack_i]:
+                    moved_files.append((data['path'], new_list.indexes[keys_pack_i][keys_pack[keys_pack_i]]['path']))
+                    found = True
+                    break
+
+            if not found:
+                deleted_files.append(data['path'])
 
     return moved_files, deleted_files
 
