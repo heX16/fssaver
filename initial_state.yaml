@@ -1,0 +1,28 @@
+contents:
+  enum_dirs.py:
+    size: 595
+    type: file
+  enum_dirs_ai.py:
+    size: 1771
+    type: file
+  readme.md:
+    size: 8678
+    type: file
+  result.yaml:
+    size: 111264
+    type: file
+  run.bat:
+    size: 50
+    type: file
+  sync_files_wip:
+    contents:
+      filesync.py:
+        size: 1523
+        type: file
+      filesync_lib.py:
+        size: 489
+        type: file
+    name: sync_files_wip
+    type: directory
+name: PySync
+type: directory
