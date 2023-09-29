@@ -16,6 +16,7 @@ from docopt import docopt
 
 g_yaml_name = 'index_hash.yaml'
 g_chuck_size = 65536
+g_ignore_linux_hide_files = True
 
 def create_file_structure(path: Path):
     yaml_path = path / g_yaml_name
@@ -31,7 +32,11 @@ def create_file_structure(path: Path):
     # iterate files and collect information
     for item in path.iterdir():
         # TODO: use `igittigitt` library for ignore
-        if item.name == '.git' and item.is_dir():
+        if (
+           (item.is_dir() and item.name == '.git') or
+           (item.name.startswith('.') and g_ignore_linux_hide_files) or
+           (item.is_file() and item.name == g_yaml_name)
+           ):
             print('IGNORE:', item)
             continue
 

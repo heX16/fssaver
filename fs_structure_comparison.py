@@ -22,7 +22,7 @@ class FilesIndex:
         self.full = {}       # 0. size, md5, ctime, mtime, name - simple detection
         self.only_hash = {}  # 1. size, md5 - detect by content
         self.no_hash = {}    # 2. ctime, name - detect change and move (without renaming)
-        self.no_name = {}    # 3. size, md5, ctime, mtime - for detect file renaming
+        self.no_name = {}    # 3. size, md5, ctime, mtime - for detect file renaming (without content change)
         self.path = {}       # 4. path - full path (deletion detection)
         # self.only_name = {}  # 5. name - simple detection by name. OFF
         self.indexes = (self.full, self.only_hash, self.no_hash, self.no_name, self.path)
@@ -95,13 +95,22 @@ def search_moved_and_deleted_files(initial_list, new_list):
                 moved_files.append((data['path'], new_list.full[key]['path']))
         else:
             # file lost - try search in other lists
-            keys_pack = FilesIndex.make_keys(data, data['path'])
             found = False
-            for keys_pack_i in range(1, 3):
-                if keys_pack[keys_pack_i] in new_list.indexes[keys_pack_i]:
-                    moved_files.append((data['path'], new_list.indexes[keys_pack_i][keys_pack[keys_pack_i]]['path']))
-                    found = True
-                    break
+            if str(data['path']) in new_list.path and new_list.path[str(data['path'])]['path'] == data['path']:
+                # That file hasn't been moved. It's just changed, but it's still there.
+                # Of course, there is a chance that a file was moved and another file was put in its place.
+                # But such complicated cases will not be considered - there will be too many erroneous decisions.
+                found = True
+
+            if not found:
+                keys_pack = FilesIndex.make_keys(data, data['path'])
+                for keys_pack_i in range(1, 3):
+                    key_ext = keys_pack[keys_pack_i]
+                    if key_ext in new_list.indexes[keys_pack_i]:
+                        found_item = new_list.indexes[keys_pack_i][key_ext]
+                        moved_files.append((data['path'], found_item['path']))
+                        found = True
+                        break
 
             if not found:
                 deleted_files.append(data['path'])
