@@ -9,7 +9,10 @@ Options:
   -h --help     Show this help message and exit.
   --old=<old_yaml>  Path to the old YAML file.
   --new=<new_yaml>  Path to the new YAML file.
+  --dup         Search duplications (wip)
 """
+
+# TODO: add search duplications mode
 
 import yaml
 import csv
@@ -24,7 +27,8 @@ class FilesIndex:
         self.no_hash = {}    # 2. ctime, name - detect change and move (without renaming)
         self.no_name = {}    # 3. size, md5, ctime, mtime - for detect file renaming (without content change)
         self.path = {}       # 4. path - full path (deletion detection)
-        # self.only_name = {}  # 5. name - simple detection by name. OFF
+        # self.no_time = {}  # size, md5, name - detect date changes. OFF
+        # self.only_name = {}# 5. name - simple detection by name. OFF
         self.indexes = (self.full, self.only_hash, self.no_hash, self.no_name, self.path)
 
 
@@ -38,7 +42,7 @@ class FilesIndex:
 
     def make_keys(data: dict, current_path: Path):
         current_name  = current_path.name
-        return (
+        keys = (
             (data['size'], data['md5'], data['ctime'], data['mtime'], current_name),
             (data['size'], data['md5']),
             (data['ctime'], current_name),
@@ -46,13 +50,37 @@ class FilesIndex:
             (str(current_path)),
         )
 
+        # keys validation
+        for i, key in enumerate(keys):
+            if i==0 and key['size']>0:
+                # try to save this key even if it doesn't contain some data (usually all data is present)
+                continue
+
+            for data in key:
+                if data=='' or data==-1 or data is None:
+                    break  # invalid data in key - delete this key
+            else:
+                continue  # all data present in key - continue
+            keys[i] = None
+
+
+        if data['size']==0:
+            keys[1] = None  # if size==0 then remove content key
+
+        return keys
+
 
     def add_item(self, data: dict, current_path: Path):
         FilesIndex.nomalize_data(data, current_path)
         keys = FilesIndex.make_keys(data, current_path)
-        # TODO: analize dublication; skip size==0 items for 'only_hash' index.
         for i, k in enumerate(self.indexes):
-            self.indexes[i][keys[i]] = data
+            if not k is None:
+                if keys[i] in self.indexes[i]:
+                    # duplication detected
+                    print('WARN(dup): '+str(current_path))
+                    # TODO: process duplication
+                else:
+                    self.indexes[i][keys[i]] = data
 
 
     def merge_files_index(self, files_index):
@@ -68,19 +96,19 @@ def load_yaml(file_path: Path):
         return None
 
 
-def create_files_index(data, current_path: Path = Path()):
-    file_lists = FilesIndex()
-    current_name = current_path.name
-    if data['type'] == 'directory':
-        for name, content in data.get('contents', {}).items():
+def create_files_index(current_item, current_path: Path = Path()):
+    files_index = FilesIndex()
+    if current_item['type'] == 'directory':
+        # Enum all items in current_item
+        for name, content in current_item['contents'].items():
             # Recursion
-            file_lists_recursion = create_files_index(content, current_path / name)
-            file_lists.merge_files_index(file_lists_recursion)
-    elif data['type'] == 'file':
-        file_lists.add_item(data, current_path)
+            files_index_recursion = create_files_index(content, current_path / name)
+            files_index.merge_files_index(files_index_recursion)
+    elif current_item['type'] == 'file':
+        files_index.add_item(current_item, current_path)
     else:
         pass  # skip other types (symlink and error)
-    return file_lists
+    return files_index
 
 
 def search_moved_and_deleted_files(initial_list, new_list):
@@ -139,8 +167,8 @@ if __name__ == "__main__":
             print("Error loading YAML files.")
         else:
             # Create special file index
-            initial_file_list = create_files_index(initial_data)
-            new_file_list = create_files_index(new_data)
+            initial_file_list = create_files_index({'type': 'root', 'contents': initial_data})
+            new_file_list = create_files_index({'type': 'root', 'contents': new_data})
             # Search diff
             moved_files, deleted_files = search_moved_and_deleted_files(initial_file_list, new_file_list)
 

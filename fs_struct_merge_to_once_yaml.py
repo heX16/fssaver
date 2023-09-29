@@ -27,10 +27,10 @@ def merge_contents(path_to_index_hash: Path):
 
     index_data = load_yaml(path_to_index_hash)
 
-    for file_name, file_data in index_data['contents'].items():
+    for file_name, file_data in index_data.items():
         if file_data['type'] == 'directory':
             recursion_indexes = merge_contents(Path(path_to_index_hash).parent / file_name / g_yaml_name)
-            index_data['contents'][file_name] = recursion_indexes
+            index_data[file_name] = recursion_indexes
 
     return index_data
 

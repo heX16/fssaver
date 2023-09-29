@@ -28,14 +28,7 @@ g_ignore_linux_hide_files = True
 def create_file_structure(path: Path):
     yaml_path = path / g_yaml_name
 
-    # TODO: change yaml structure
-    file_structure = {
-        'type': 'directory',
-        'name': path.name,
-        'contents': {},
-        'ctime': path.stat().st_ctime,
-        'mtime': path.stat().st_mtime,
-    }
+    file_structure = {}
 
     # iterate files and collect information
     for item in path.iterdir():
@@ -49,13 +42,13 @@ def create_file_structure(path: Path):
             continue
 
         if item.is_dir():
-            file_structure['contents'][item.name] = {
+            file_structure[item.name] = {
                 'type': 'directory',
                 'ctime': item.stat().st_ctime,
                 'mtime': item.stat().st_mtime,
             }
         else:
-            file_structure['contents'][item.name] = {
+            file_structure[item.name] = {
                 'type': 'symlink' if item.is_symlink() else 'file',
                 'size': item.stat().st_size,
                 'md5': calculate_md5(item),
@@ -70,12 +63,12 @@ def create_file_structure(path: Path):
         save_to_yaml(file_structure, yaml_path)
 
     # Search directory in list (for recursion)
-    for name, content in file_structure['contents'].items():
+    for name, content in file_structure.items():
         if content['type'] == 'directory':
             dir_path = path / name
             # Recursion
             create_file_structure(dir_path)
-        file_structure['contents'][name] = None  # remove item from memory (for optimization)
+        file_structure[name] = None  # remove item from memory (for optimization)
 
 
 def calculate_md5(file_path):
