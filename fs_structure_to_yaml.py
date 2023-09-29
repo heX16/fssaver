@@ -8,6 +8,13 @@ Options:
   -h --help     Show this help message and exit.
 """
 
+# TODO: change yaml structure - remove first item.
+
+# TODO: add smart update - load, compare, and update to up to day state
+
+# TODO: add simple update function:
+#       varios modes: update all date, update all md5
+
 import os
 import yaml
 import hashlib
@@ -21,6 +28,7 @@ g_ignore_linux_hide_files = True
 def create_file_structure(path: Path):
     yaml_path = path / g_yaml_name
 
+    # TODO: change yaml structure
     file_structure = {
         'type': 'directory',
         'name': path.name,
@@ -43,12 +51,16 @@ def create_file_structure(path: Path):
         if item.is_dir():
             file_structure['contents'][item.name] = {
                 'type': 'directory',
+                'ctime': item.stat().st_ctime,
+                'mtime': item.stat().st_mtime,
             }
         else:
             file_structure['contents'][item.name] = {
-                'type': 'symlink' if path.is_symlink() else 'file',
+                'type': 'symlink' if item.is_symlink() else 'file',
                 'size': item.stat().st_size,
                 'md5': calculate_md5(item),
+                'ctime': item.stat().st_ctime,
+                'mtime': item.stat().st_mtime,
             }
 
     if yaml_path.exists():
