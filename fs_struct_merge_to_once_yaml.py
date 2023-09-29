@@ -54,9 +54,12 @@ def main():
     arguments = docopt(__doc__)
 
     start_directory = Path(arguments['<start_directory>'])
-    yaml_file = arguments['<yaml_file>'] or 'index_hash_all.yaml'
+    yaml_file = Path(arguments['<yaml_file>'] or 'index_hash_all.yaml')
 
     merged_structure = merge_contents(start_directory / g_yaml_name)
+
+    if not yaml_file.is_absolute():
+        yaml_file = start_directory / yaml_file
 
     save_to_yaml(merged_structure, yaml_file)
     print(f'The merged file structure is saved in {yaml_file}')
