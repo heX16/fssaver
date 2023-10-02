@@ -47,7 +47,7 @@ class FilesIndex:
             (data['size'], data['md5']),
             (data['ctime'], current_name),
             (data['size'], data['md5'], data['ctime'], data['mtime']),
-            (str(current_path)),
+            (str(current_path), ),
         ]
 
         # keys validation
@@ -72,13 +72,14 @@ class FilesIndex:
         FilesIndex.nomalize_data(data, current_path)
         keys = FilesIndex.make_keys(data, current_path)
         for i, k in enumerate(self.indexes):
-            if not k is None:
-                if keys[i] in self.indexes[i]:
-                    # duplication detected
-                    print('WARN(dup): ' + str(current_path))
-                    # TODO: process duplication
-                else:
-                    self.indexes[i][keys[i]] = data
+            if k is None:
+                continue
+            if keys[i] in self.indexes[i]:
+                # duplication detected
+                print('WARN(dup): ' + str(current_path))
+                # TODO: process duplication
+            else:
+                self.indexes[i][keys[i]] = data
 
     def merge_files_index(self, files_index):
         for i, k in enumerate(self.indexes):
@@ -95,7 +96,7 @@ def load_yaml(file_path: Path):
 
 def create_files_index(current_item, current_path: Path = Path()):
     files_index = FilesIndex()
-    if current_item['type'] == 'directory':
+    if current_item['type'] == 'dir':
         # Enum all items in current_item
         for name, content in current_item['contents'].items():
             # Recursion
@@ -164,8 +165,8 @@ def main():
             print("Error loading YAML files.")
         else:
             # Create special file index
-            initial_file_list = create_files_index({'type': 'root', 'contents': initial_data})
-            new_file_list = create_files_index({'type': 'root', 'contents': new_data})
+            initial_file_list = create_files_index({'type': 'dir', 'contents': initial_data})
+            new_file_list = create_files_index({'type': 'dir', 'contents': new_data})
             # Search diff
             moved_files, deleted_files = search_moved_and_deleted_files(initial_file_list, new_file_list)
 

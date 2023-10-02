@@ -1,22 +1,22 @@
-enum_dirs.py NEW STATE:
+file1.txt:
+  size: 5951
+  type: file
+file2.txt:
   size: 595
   type: file
-enum_dirs_ai.py:
-  size: 1771
+file3.txt:
+  size: 5953
   type: file
-readme.md:
-  size: 8678
-  type: file
-result.yaml:
-  size: 111264
-  type: file
-sync_files_wip:
+sub_dir1:
   contents:
-    run.bat:
-      size: 50
+    file11.txt:
+      size: 5951
       type: file
-    filesync_lib.py:
-      size: 489
+    file12.txt:
+      size: 5952
       type: file
-  name: sync_files_wip
-  type: directory
+    file13.txt:
+      size: 5954
+      type: file
+  name: sub_dir1
+  type: dir

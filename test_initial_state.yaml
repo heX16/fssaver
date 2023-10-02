@@ -1,25 +1,22 @@
-enum_dirs.py:
+file1.txt:
   size: 595
   type: file
-enum_dirs_ai.py:
-  size: 1771
+file2.txt:
+  size: 595
   type: file
-readme.md:
-  size: 8678
+file3.txt:
+  size: 5953
   type: file
-result.yaml:
-  size: 111264
-  type: file
-run.bat:
-  size: 50
-  type: file
-sync_files_wip:
+sub_dir1:
   contents:
-    filesync.py:
-      size: 1523
+    file11.txt:
+      size: 5951
       type: file
-    filesync_lib.py:
-      size: 489
+    file12.txt:
+      size: 5952
       type: file
-  name: sync_files_wip
-  type: directory
+    file13.txt:
+      size: 5954
+      type: file
+  name: sub_dir1
+  type: dir
