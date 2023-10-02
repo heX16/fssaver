@@ -19,29 +19,28 @@ import csv
 from pathlib import Path
 from docopt import docopt
 
+
 class FilesIndex:
 
     def __init__(self):
-        self.full = {}       # 0. size, md5, ctime, mtime, name - simple detection
+        self.full = {}  # 0. size, md5, ctime, mtime, name - simple detection
         self.only_hash = {}  # 1. size, md5 - detect by content
-        self.no_hash = {}    # 2. ctime, name - detect change and move (without renaming)
-        self.no_name = {}    # 3. size, md5, ctime, mtime - for detect file renaming (without content change)
-        self.path = {}       # 4. path - full path (deletion detection)
+        self.no_hash = {}  # 2. ctime, name - detect change and move (without renaming)
+        self.no_name = {}  # 3. size, md5, ctime, mtime - for detect file renaming (without content change)
+        self.path = {}  # 4. path - full path (deletion detection)
         # self.no_time = {}  # size, md5, name - detect date changes. OFF
         # self.only_name = {}# 5. name - simple detection by name. OFF
         self.indexes = (self.full, self.only_hash, self.no_hash, self.no_name, self.path)
 
-
     def nomalize_data(data: dict, current_path: Path):
-        data['path']  = current_path
-        data['size']  = data.get('size', -1)
-        data['md5']   = data.get('md5', '')
+        data['path'] = current_path
+        data['size'] = data.get('size', -1)
+        data['md5'] = data.get('md5', '')
         data['ctime'] = data.get('ctime', '')
         data['mtime'] = data.get('mtime', '')
 
-
     def make_keys(data: dict, current_path: Path):
-        current_name  = current_path.name
+        current_name = current_path.name
         keys = (
             (data['size'], data['md5'], data['ctime'], data['mtime'], current_name),
             (data['size'], data['md5']),
@@ -52,23 +51,21 @@ class FilesIndex:
 
         # keys validation
         for i, key in enumerate(keys):
-            if i==0 and key['size']>0:
+            if i == 0 and key['size'] > 0:
                 # try to save this key even if it doesn't contain some data (usually all data is present)
                 continue
 
             for data in key:
-                if data=='' or data==-1 or data is None:
+                if data == '' or data == -1 or data is None:
                     break  # invalid data in key - delete this key
             else:
                 continue  # all data present in key - continue
             keys[i] = None
 
-
-        if data['size']==0:
+        if data['size'] == 0:
             keys[1] = None  # if size==0 then remove content key
 
         return keys
-
 
     def add_item(self, data: dict, current_path: Path):
         FilesIndex.nomalize_data(data, current_path)
@@ -77,11 +74,10 @@ class FilesIndex:
             if not k is None:
                 if keys[i] in self.indexes[i]:
                     # duplication detected
-                    print('WARN(dup): '+str(current_path))
+                    print('WARN(dup): ' + str(current_path))
                     # TODO: process duplication
                 else:
                     self.indexes[i][keys[i]] = data
-
 
     def merge_files_index(self, files_index):
         for i, k in enumerate(self.indexes):
@@ -150,6 +146,7 @@ def save_to_csv(file_path: Path, data):
     with open(file_path, 'w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=';')
         csv_writer.writerows(data)
+
 
 if __name__ == "__main__":
     arguments = docopt(__doc__)
