@@ -11,6 +11,7 @@ Options:
   --new=<new_yaml>  Path to the new YAML file.
   --dup         Search duplications (wip)
 """
+from typing import List, Any, Tuple
 
 # TODO: add search duplications mode
 
@@ -41,22 +42,22 @@ class FilesIndex:
 
     def make_keys(data: dict, current_path: Path):
         current_name = current_path.name
-        keys = (
+        keys = [
             (data['size'], data['md5'], data['ctime'], data['mtime'], current_name),
             (data['size'], data['md5']),
             (data['ctime'], current_name),
             (data['size'], data['md5'], data['ctime'], data['mtime']),
             (str(current_path)),
-        )
+        ]
 
         # keys validation
         for i, key in enumerate(keys):
-            if i == 0 and key['size'] > 0:
+            if i == 0 and data['size'] > 0:
                 # try to save this key even if it doesn't contain some data (usually all data is present)
                 continue
 
-            for data in key:
-                if data == '' or data == -1 or data is None:
+            for d in key:
+                if d == '' or d == -1 or d is None:
                     break  # invalid data in key - delete this key
             else:
                 continue  # all data present in key - continue
@@ -108,8 +109,9 @@ def create_files_index(current_item, current_path: Path = Path()):
 
 
 def search_moved_and_deleted_files(initial_list, new_list):
-    deleted_files = []
-    moved_files = []
+    deleted_files: list[Path] = []
+    moved_files: list[tuple[Path, Path]] = []
+
     for key, data in initial_list.full.items():
         # search by full key
         if key in new_list.full:
@@ -148,12 +150,10 @@ def save_to_csv(file_path: Path, data):
         csv_writer.writerows(data)
 
 
-if __name__ == "__main__":
+def main():
     arguments = docopt(__doc__)
-
     old_yaml = Path(arguments['--old'])
     new_yaml = Path(arguments['--new'])
-
     if not old_yaml.is_file() or not new_yaml.is_file():
         print("The specified YAML files do not exist.")
     else:
@@ -189,3 +189,7 @@ if __name__ == "__main__":
                 print("Moved files saved to moved.csv")
             else:
                 print("Moved files not detected")
+
+
+if __name__ == "__main__":
+    main()
