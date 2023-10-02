@@ -10,13 +10,13 @@ file3.txt:
 sub_dir1:
   contents:
     file11.txt:
-      size: 5951
+      size: 15951
       type: file
     file12.txt:
-      size: 5952
+      size: 15952
       type: file
     file13.txt:
-      size: 5954
+      size: 15954
       type: file
   name: sub_dir1
   type: dir

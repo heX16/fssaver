@@ -24,30 +24,34 @@ from docopt import docopt
 class FilesIndex:
 
     def __init__(self):
-        self.full = {}  # 0. size, md5, ctime, mtime, name - simple detection
+        self.full = {}  # 0. name, size, md5, ctime, mtime - simple detection
         self.only_hash = {}  # 1. size, md5 - detect by content
-        self.no_hash = {}  # 2. ctime, name - detect change and move (without renaming)
+        self.no_hash = {}  # 2. name, ctime, mtime  - detect change and move (without renaming)
         self.no_name = {}  # 3. size, md5, ctime, mtime - for detect file renaming (without content change)
-        self.path = {}  # 4. path - full path (deletion detection)
-        # self.no_time = {}  # size, md5, name - detect date changes. OFF
-        # self.only_name = {}# 5. name - simple detection by name. OFF
-        self.indexes = (self.full, self.only_hash, self.no_hash, self.no_name, self.path)
+        self.only_path = {}  # 4. path - full path (deletion detection)
+        # self.no_hash_co = {}  # 2. name, ctime - detect change and move (without renaming)
+        # self.short = {}  # name, size - simple detection by short data
+        # self.no_time = {}  # name, size, md5  - detect date changes. OFF
+        # self.only_name = {}# name - simple detection by name. OFF
+        self.indexes = (self.full, self.only_hash, self.no_hash, self.no_name, self.only_path)
 
-    def nomalize_data(data: dict, current_path: Path):
+    @classmethod
+    def normalize_data(cls, data: dict, current_path: Path):
         data['path'] = current_path
         data['size'] = data.get('size', -1)
         data['md5'] = data.get('md5', '')
         data['ctime'] = data.get('ctime', '')
         data['mtime'] = data.get('mtime', '')
 
-    def make_keys(data: dict, current_path: Path):
+    @classmethod
+    def make_keys(cls, data: dict, current_path: Path):
         current_name = current_path.name
         keys = [
-            (data['size'], data['md5'], data['ctime'], data['mtime'], current_name),
+            (current_name, data['size'], data['md5'], data['ctime'], data['mtime']),
             (data['size'], data['md5']),
-            (data['ctime'], current_name),
+            (current_name, data['ctime'], data['mtime']),
             (data['size'], data['md5'], data['ctime'], data['mtime']),
-            (str(current_path), ),
+            (str(current_path),),
         ]
 
         # keys validation
@@ -69,7 +73,7 @@ class FilesIndex:
         return keys
 
     def add_item(self, data: dict, current_path: Path):
-        FilesIndex.nomalize_data(data, current_path)
+        FilesIndex.normalize_data(data, current_path)
         keys = FilesIndex.make_keys(data, current_path)
         for i, k in enumerate(self.indexes):
             if k is None:
@@ -109,10 +113,12 @@ def create_files_index(current_item, current_path: Path = Path()):
     return files_index
 
 
-def search_moved_and_deleted_files(initial_list, new_list):
+def search_changes_in_fs_struct(initial_list, new_list):
     deleted_files: list[Path] = []
     moved_files: list[tuple[Path, Path]] = []
+    changed_files: list[Path] = []
 
+    # search
     for key, data in initial_list.full.items():
         # search by full key
         if key in new_list.full:
@@ -123,7 +129,7 @@ def search_moved_and_deleted_files(initial_list, new_list):
         else:
             # file lost - try search in other lists
             found = False
-            if str(data['path']) in new_list.path and new_list.path[str(data['path'])]['path'] == data['path']:
+            if (str(data['path']),) in new_list.only_path and new_list.only_path[(str(data['path']),)]['path'] == data['path']:
                 # That file hasn't been moved. It's just changed, but it's still there.
                 # Of course, there is a chance that a file was moved and another file was put in its place.
                 # But such complicated cases will not be considered - there will be too many erroneous decisions.
@@ -133,6 +139,8 @@ def search_moved_and_deleted_files(initial_list, new_list):
                 keys_pack = FilesIndex.make_keys(data, data['path'])
                 for keys_pack_i in range(1, 3):
                     key_ext = keys_pack[keys_pack_i]
+                    if key_ext == None:
+                        continue
                     if key_ext in new_list.indexes[keys_pack_i]:
                         found_item = new_list.indexes[keys_pack_i][key_ext]
                         moved_files.append((data['path'], found_item['path']))
@@ -140,15 +148,51 @@ def search_moved_and_deleted_files(initial_list, new_list):
                         break
 
             if not found:
-                deleted_files.append(data['path'])
+                if (str(data['path']),) in new_list.only_path:
+                    changed_files.append(data['path'])
+                else:
+                    deleted_files.append(data['path'])
 
-    return moved_files, deleted_files
+    return changed_files, moved_files, deleted_files
 
 
 def save_to_csv(file_path: Path, data):
     with open(file_path, 'w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=';')
         csv_writer.writerows(data)
+
+
+def print_result(changed_files, moved_files, deleted_files):
+    # Print result
+    if changed_files:
+        print("Changed files list:")
+        for f in deleted_files:
+            print(str(f))
+        # Save deleted files to CSV
+        save_to_csv(Path("deleted.csv"), [[str(f)] for f in deleted_files])
+        print("Changed files saved to deleted.csv")
+    else:
+        print("Changed files not detected")
+
+    if deleted_files:
+        print("Deleted files list:")
+        for f in deleted_files:
+            print(str(f))
+        # Save deleted files to CSV
+        save_to_csv(Path("deleted.csv"), [[str(f)] for f in deleted_files])
+        print("Deleted files saved to deleted.csv")
+    else:
+        print("Delete files not detected")
+
+    if moved_files:
+        print("Moved files list:")
+        for f in moved_files:
+            print(str(f[0]) + ';    ' + str(f[1]))
+        # Save moved files to CSV
+        save_to_csv(Path("moved.csv"), [[str(f[0]), str(f[1])] for f in moved_files])
+        print("Moved files saved to moved.csv")
+    else:
+        print("Moved files not detected")
 
 
 def main():
@@ -168,28 +212,8 @@ def main():
             initial_file_list = create_files_index({'type': 'dir', 'contents': initial_data})
             new_file_list = create_files_index({'type': 'dir', 'contents': new_data})
             # Search diff
-            moved_files, deleted_files = search_moved_and_deleted_files(initial_file_list, new_file_list)
-
-            # Print result
-            if deleted_files:
-                print("Deleted files list:")
-                for f in deleted_files:
-                    print(str(f))
-                # Save deleted files to CSV
-                save_to_csv(Path("deleted.csv"), [[str(f)] for f in deleted_files])
-                print("Deleted files saved to deleted.csv")
-            else:
-                print("Delete files not detected")
-
-            if moved_files:
-                print("Moved files list:")
-                for f in moved_files:
-                    print(str(f[0]) + ';    ' + str(f[1]))
-                # Save moved files to CSV
-                save_to_csv(Path("moved.csv"), [[str(f[0]), str(f[1])] for f in moved_files])
-                print("Moved files saved to moved.csv")
-            else:
-                print("Moved files not detected")
+            changed_files, moved_files, deleted_files = search_changes_in_fs_struct(initial_file_list, new_file_list)
+            print_result(changed_files, moved_files, deleted_files)
 
 
 if __name__ == "__main__":
