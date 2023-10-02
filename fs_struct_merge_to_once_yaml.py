@@ -28,7 +28,7 @@ def merge_contents(path_to_index_hash: Path):
     index_data = load_yaml(path_to_index_hash)
 
     for file_name, file_data in index_data.items():
-        if file_data['type'] == 'directory':
+        if file_data['type'] == 'directory' or file_data['type'] == 'dir':
             recursion_indexes = merge_contents(Path(path_to_index_hash).parent / file_name / g_yaml_name)
             index_data[file_name] = recursion_indexes
 
