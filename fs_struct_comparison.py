@@ -20,11 +20,14 @@ import csv
 from pathlib import Path
 from docopt import docopt
 
+# TODO: add Dir rename/move detection.
+#  You should add a count of successfully found subfiles.
+#  if the contents are roughly similar, you can declare that the directory was simply renamed or moved.
 
 class FilesIndex:
 
     def __init__(self):
-        self.full = {}  # 0. name, size, md5, ctime, mtime - simple detection
+        self.full = {}  # 0. name, type, size, md5, ctime, mtime - simple detection
         self.only_hash = {}  # 1. size, md5 - detect by content
         self.no_hash = {}  # 2. name, ctime, mtime  - detect change and move (without renaming)
         self.no_name = {}  # 3. size, md5, ctime, mtime - for detect file renaming (without content change)
@@ -38,6 +41,7 @@ class FilesIndex:
     @classmethod
     def normalize_data(cls, data: dict, current_path: Path):
         data['path'] = current_path
+        data['type'] = data.get('type', 'error')
         data['size'] = data.get('size', -1)
         data['md5'] = data.get('md5', '')
         data['ctime'] = data.get('ctime', '')
@@ -47,7 +51,7 @@ class FilesIndex:
     def make_keys(cls, data: dict, current_path: Path):
         current_name = current_path.name
         keys = [
-            (current_name, data['size'], data['md5'], data['ctime'], data['mtime']),
+            (current_name, data['type'], data['size'], data['md5'], data['ctime'], data['mtime']),
             (data['size'], data['md5']),
             (current_name, data['ctime'], data['mtime']),
             (data['size'], data['md5'], data['ctime'], data['mtime']),
@@ -80,7 +84,7 @@ class FilesIndex:
                 continue
             if keys[i] in self.indexes[i]:
                 # duplication detected
-                print('WARN(dup): ' + str(current_path))
+                print('WARN(dup): ' + str(current_path) + str(keys[i]))
                 # TODO: process duplication
             else:
                 self.indexes[i][keys[i]] = data
@@ -98,18 +102,19 @@ def load_yaml(file_path: Path):
         return None
 
 
-def create_files_index(current_item, current_path: Path = Path()):
+def create_files_index(current_dir_item, current_path: Path = Path()):
     files_index = FilesIndex()
-    if current_item['type'] == 'dir':
+    if current_dir_item['type'] == 'dir':
         # Enum all items in current_item
-        for name, content in current_item['contents'].items():
-            # Recursion
-            files_index_recursion = create_files_index(content, current_path / name)
-            files_index.merge_files_index(files_index_recursion)
-    elif current_item['type'] == 'file':
-        files_index.add_item(current_item, current_path)
-    else:
-        pass  # skip other types (symlink and error)
+        for name, item in current_dir_item['contents'].items():
+            if item['type'] == 'dir':
+                # Recursion
+                files_index_recursion = create_files_index(item, current_path / name)
+                files_index.merge_files_index(files_index_recursion)
+            elif item['type'] == 'file':
+                files_index.add_item(item, current_path / name)
+            else:
+                pass  # skip other types (error)
     return files_index
 
 
@@ -129,17 +134,40 @@ def search_changes_in_fs_struct(initial_list, new_list):
         else:
             # file lost - try search in other lists
             found = False
-            if (str(data['path']),) in new_list.only_path and new_list.only_path[(str(data['path']),)]['path'] == data['path']:
+
+            # check changes
+            path_key = (str(data['path']),)
+            new = new_list.only_path[path_key]
+            if path_key in new_list.only_path and new['path'] == data['path']:
                 # That file hasn't been moved. It's just changed, but it's still there.
                 # Of course, there is a chance that a file was moved and another file was put in its place.
                 # But such complicated cases will not be considered - there will be too many erroneous decisions.
+                changes = []
                 found = True
+                old = initial_list.only_path[path_key]
 
+                if old['type'] != new['type']:
+                    found = False
+                    changes.append('type')
+                else:
+                    if old['size'] != new['size']:
+                        changes.append('size')
+                    else:
+                        if old['md5'] != new['md5']:
+                            changes.append('md5')
+                    if old['mtime'] != new['mtime']:
+                        changes.append('mtime')
+                    if old['ctime'] != new['ctime']:
+                        changes.append('ctime')
+                    if (str(data['path']),) in new_list.only_path:
+                        changed_files.append((data['path'], ','.join(changes)))
+
+            # check moving
             if not found:
                 keys_pack = FilesIndex.make_keys(data, data['path'])
                 for keys_pack_i in range(1, 3):
                     key_ext = keys_pack[keys_pack_i]
-                    if key_ext == None:
+                    if key_ext is None:
                         continue
                     if key_ext in new_list.indexes[keys_pack_i]:
                         found_item = new_list.indexes[keys_pack_i][key_ext]
@@ -148,10 +176,7 @@ def search_changes_in_fs_struct(initial_list, new_list):
                         break
 
             if not found:
-                if (str(data['path']),) in new_list.only_path:
-                    changed_files.append(data['path'])
-                else:
-                    deleted_files.append(data['path'])
+                deleted_files.append(data['path'])
 
     return changed_files, moved_files, deleted_files
 
@@ -166,11 +191,11 @@ def print_result(changed_files, moved_files, deleted_files):
     # Print result
     if changed_files:
         print("Changed files list:")
-        for f in deleted_files:
+        for f in changed_files:
             print(str(f))
         # Save deleted files to CSV
-        save_to_csv(Path("deleted.csv"), [[str(f)] for f in deleted_files])
-        print("Changed files saved to deleted.csv")
+        save_to_csv(Path("changed.csv"), [[str(f[0]), str(f[1])] for f in changed_files])
+        print("Changed files saved to changed.csv")
     else:
         print("Changed files not detected")
 
