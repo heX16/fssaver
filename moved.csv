@@ -1,4 +1,1 @@
-file1.txt;sub_dir1\file13.txt
-sub_dir1\file11.txt;sub_dir1\file13.txt
-sub_dir1\file12.txt;sub_dir1\file13.txt
-sub_dir1\file13.txt;sub_dir1\file13.txt
+test_initial_state.yaml;test\3\test_initial_state.yaml

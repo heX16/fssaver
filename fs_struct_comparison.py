@@ -19,10 +19,22 @@ import yaml
 import csv
 from pathlib import Path
 from docopt import docopt
+from datetime import datetime
 
 # TODO: add Dir rename/move detection.
 #  You should add a count of successfully found subfiles.
 #  if the contents are roughly similar, you can declare that the directory was simply renamed or moved.
+
+# TODO: use `time_trim_ms` in normalize
+
+
+def time_trim_ms(t: datetime or float or int):
+    if type(t) == float:
+        return int(t)
+    elif type(t) == datetime:
+        return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second)
+    return t
+
 
 class FilesIndex:
 
@@ -84,7 +96,11 @@ class FilesIndex:
                 continue
             if keys[i] in self.indexes[i]:
                 # duplication detected
-                print('WARN(dup): ' + str(current_path) + str(keys[i]))
+                print('warn dup:\n  src:{0}\n  dst:{1}\n  key:{2}'.format(
+                    str(current_path),
+                    self.indexes[i][keys[i]]['path'],
+                    ', '.join(map(lambda x: str(x), keys[i]))
+                ))
                 # TODO: process duplication
             else:
                 self.indexes[i][keys[i]] = data
@@ -137,13 +153,13 @@ def search_changes_in_fs_struct(initial_list, new_list):
 
             # check changes
             path_key = (str(data['path']),)
-            new = new_list.only_path[path_key]
-            if path_key in new_list.only_path and new['path'] == data['path']:
+            if path_key in new_list.only_path and new_list.only_path[path_key]['path'] == data['path']:
                 # That file hasn't been moved. It's just changed, but it's still there.
                 # Of course, there is a chance that a file was moved and another file was put in its place.
                 # But such complicated cases will not be considered - there will be too many erroneous decisions.
                 changes = []
                 found = True
+                new = new_list.only_path[path_key]
                 old = initial_list.only_path[path_key]
 
                 if old['type'] != new['type']:
@@ -192,7 +208,7 @@ def print_result(changed_files, moved_files, deleted_files):
     if changed_files:
         print("Changed files list:")
         for f in changed_files:
-            print(str(f))
+            print(str(f[0]) + ';    ' + str(f[1]))
         # Save deleted files to CSV
         save_to_csv(Path("changed.csv"), [[str(f[0]), str(f[1])] for f in changed_files])
         print("Changed files saved to changed.csv")
@@ -234,7 +250,9 @@ def main():
             print("Error loading YAML files.")
         else:
             # Create special file index
+            print('Parse old')
             initial_file_list = create_files_index({'type': 'dir', 'contents': initial_data})
+            print('Parse new')
             new_file_list = create_files_index({'type': 'dir', 'contents': new_data})
             # Search diff
             changed_files, moved_files, deleted_files = search_changes_in_fs_struct(initial_file_list, new_file_list)

@@ -1,4 +1,11 @@
+_fs_structure_to_once_yaml_old.py;size,mtime
 changed.csv;size,mtime
+deleted.csv;size,mtime
 fs_struct_comparison.py;size,mtime
+fs_struct_to_yaml.py;size,mtime
+fs_struct_to_yaml_old.py;size,mtime
 index_hash_all.yaml;size,mtime
 index_hash_all_old.yaml;size,mtime,ctime
+moved.csv;size,mtime
+old\enum_dirs_crc_example.py;mtime,ctime
+sync_files_wip\filesync.py;mtime,ctime

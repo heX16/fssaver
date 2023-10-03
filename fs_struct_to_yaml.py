@@ -22,31 +22,32 @@ from pathlib import Path
 from docopt import docopt
 from datetime import datetime
 
-
 g_yaml_name = 'index_hash.yaml'
 g_chuck_size = 65536
 g_ignore_linux_hide_files = True
 
 
 def time_trim_ms(t: datetime or float or int):
-    if type(t)==float:
+    if type(t) == float:
         return int(t)
-    elif type(t)==datetime:
+    elif type(t) == datetime:
         return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second)
     return t
 
+
 def update_record(r: dict, data: Path) -> dict:
-    '''
-    type = dir|file|unkown
-    symlink
-    ctime
-    mtime
-
-    md5
-    size
-
-    contents
-    '''
+    """
+    all:
+        type = dir|file|unknown|error
+        ctime
+        mtime
+        symlink = True|_NotExist_
+    file:
+        md5
+        size
+    dir:
+        contents
+    """
 
     if data.is_dir():
         r['type'] = 'dir'
@@ -56,16 +57,16 @@ def update_record(r: dict, data: Path) -> dict:
             del r['md5']
     elif data.is_file():
         r['type'] = 'file'
-        if (r.get('ctime', 0) != time_trim_ms(data.stat().st_ctime) or
-            r.get('mtime', 0) != time_trim_ms(data.stat().st_mtime) or
-            r.get('size', -1) != data.stat().st_size):
+        if (r.get('size', -1) != data.stat().st_size or
+                r.get('ctime', 0) != time_trim_ms(data.stat().st_ctime) or
+                r.get('mtime', 0) != time_trim_ms(data.stat().st_mtime)):
             # if date change - recalc hash
             r['md5'] = calculate_md5(data)
         r['size'] = data.stat().st_size
         if 'contents' in r:
             del r['contents']
     else:
-        r['type'] = 'unkown'
+        r['type'] = 'unknown'
         return r
 
     if data.is_symlink():
@@ -103,17 +104,17 @@ def create_file_structure(path: Path):
 
         # Use igittigitt library for ignore (implement this if needed)
         if (
-           (item.is_dir() and item.name == '.git') or
-           (item.name.startswith('.') and g_ignore_linux_hide_files) or
-           (item.name == g_yaml_name)
-           ):
-            print('ingnore:', item)
+                (item.is_dir() and item.name == '.git') or
+                (item.name.startswith('.') and g_ignore_linux_hide_files) or
+                (item.name == g_yaml_name)
+        ):
+            print('ignore:', item)
             continue
 
         if item.name in items_to_delete:
             items_to_delete.remove(item.name)
 
-        if not item.name in file_structure:
+        if not (item.name in file_structure):
             # add
             print('add:', item.name)
             file_structure[item.name] = update_record({}, item)
@@ -122,14 +123,12 @@ def create_file_structure(path: Path):
             print('update:', item.name)
             file_structure[item.name] = update_record(file_structure[item.name], item)
 
-
     # Remove items that were not encountered in the current directory
     for item_to_delete in items_to_delete:
         del file_structure[item_to_delete]
 
-
     if yaml_loaded:
-        #print('SKIP(EXISTS):', str(yaml_path))
+        # print('SKIP(EXISTS):', str(yaml_path))
         print('SAVE UPDATED:', str(yaml_path))
     else:
         print('SAVE NEW:', str(yaml_path))
@@ -139,12 +138,11 @@ def create_file_structure(path: Path):
 
     # Search directory in list (for recursion)
     for name, content in file_structure.items():
-        if content['type'] == 'directory':
+        if content['type'] == 'dir':
             dir_path = path / name
             # Recursion
             create_file_structure(dir_path)
         file_structure[name] = None  # remove item from memory (for optimization)
-
 
 
 def calculate_md5(file_path):
@@ -154,9 +152,11 @@ def calculate_md5(file_path):
             md5_hash.update(chunk)
     return md5_hash.hexdigest()
 
+
 def save_to_yaml(data, output_file):
     with open(output_file, 'w') as f:
         yaml.dump(data, f, default_flow_style=False)
+
 
 def main():
     arguments = docopt(__doc__)
@@ -168,6 +168,7 @@ def main():
         create_file_structure(start_path)
     else:
         print("The specified path does not exist or is not a directory.")
+
 
 if __name__ == "__main__":
     main()
