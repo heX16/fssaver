@@ -11,7 +11,7 @@ Options:
   --new=<new_yaml>  Path to the new YAML file.
   --dup         Search duplications (wip)
 """
-from typing import List, Any, Tuple
+from typing import List, Any, Tuple, Iterable
 
 # TODO: add search duplications mode
 
@@ -142,7 +142,7 @@ def create_files_index(current_dir_item, current_path: Path = Path()):
 
 
 def search_changes_in_fs_struct(initial_list, new_list):
-    deleted_files: list[Path] = []
+    deleted_files: list[tuple[Path]] = []
     moved_files: list[tuple[Path, Path]] = []
     changed_files: list[tuple[Path, Any]] = []
 
@@ -200,7 +200,7 @@ def search_changes_in_fs_struct(initial_list, new_list):
                         break
 
             if not found:
-                deleted_files.append(data['path'])
+                deleted_files.append((data['path'], ))
 
     return changed_files, moved_files, deleted_files
 
@@ -211,37 +211,31 @@ def save_to_csv(file_path: Path, data):
         csv_writer.writerows(data)
 
 
+def print_file_list(header: str, files_list: list[tuple], csv_filename=None):
+    """
+    Print a list of files and optionally save it to a CSV file.
+    """
+    if not files_list:
+        print(f"{header} not detected")
+        return
+
+    list_str = [list(map(str, item)) for item in files_list]
+    print(f"{header} list:")
+    for item in list_str:
+        print(';   '.join(item))
+
+    if csv_filename:
+        save_to_csv(Path(csv_filename), list_str)
+        print(f"{header} saved to {csv_filename}")
+
+
 def print_result(changed_files, moved_files, deleted_files):
-    # Print result
-    if changed_files:
-        print("Changed files list:")
-        for f in changed_files:
-            print(str(f[0]) + ';    ' + str(f[1]))
-        # Save deleted files to CSV
-        save_to_csv(Path("changed.csv"), [[str(f[0]), str(f[1])] for f in changed_files])
-        print("Changed files saved to changed.csv")
-    else:
-        print("Changed files not detected")
-
-    if deleted_files:
-        print("Deleted files list:")
-        for f in deleted_files:
-            print(str(f))
-        # Save deleted files to CSV
-        save_to_csv(Path("deleted.csv"), [[str(f)] for f in deleted_files])
-        print("Deleted files saved to deleted.csv")
-    else:
-        print("Delete files not detected")
-
-    if moved_files:
-        print("Moved files list:")
-        for f in moved_files:
-            print(str(f[0]) + ';    ' + str(f[1]))
-        # Save moved files to CSV
-        save_to_csv(Path("moved.csv"), [[str(f[0]), str(f[1])] for f in moved_files])
-        print("Moved files saved to moved.csv")
-    else:
-        print("Moved files not detected")
+    """
+    Print and optionally save the results of changed, moved, and deleted files.
+    """
+    print_file_list("Changed files", changed_files, "changed.csv")
+    print_file_list("Moved files", moved_files, "moved.csv")
+    print_file_list("Deleted files", deleted_files, "deleted.csv")
 
 
 def main():

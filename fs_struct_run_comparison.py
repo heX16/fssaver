@@ -36,7 +36,9 @@ if not matching_files:
 file2 = matching_files[0]
 
 # Run the fs_struct_comparison.py program with arguments file1 and file2
-result = sh(f"python {executable_path} --new={file1} --old={file2}")
+cmd = f"python {executable_path} --new={file1} --old={file2}"
+print('Run:', cmd)
+result = sh(cmd)
 
 if result != 0:
     print(f"Error occurred while executing the command")
