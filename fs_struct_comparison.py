@@ -11,15 +11,8 @@ Options:
   --new=<new_yaml>  Path to the new YAML file.
   --dup         Search duplications (wip)
 """
-import typing
 
 # TODO: add search duplications mode
-
-import yaml
-import csv
-from pathlib import Path
-from docopt import docopt
-from datetime import datetime
 
 # TODO: add Dir rename/move detection.
 #  You should add a count of successfully found subfiles.
@@ -28,12 +21,10 @@ from datetime import datetime
 # TODO: use `time_trim_ms` in normalize
 
 
-def time_trim_ms(t: datetime or float or int):
-    if type(t) == float:
-        return int(t)
-    elif type(t) == datetime:
-        return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second)
-    return t
+from fs_struct_utils import *
+import typing
+from pathlib import Path
+from docopt import docopt
 
 
 class FilesIndex:
@@ -110,21 +101,6 @@ class FilesIndex:
             self.indexes[i].update(files_index.indexes[i])
 
 
-def load_yaml(input_file, encoding='utf-8'):
-    try:
-        with open(input_file, 'r', encoding=encoding) as f:
-            return yaml.safe_load(f)
-    except FileNotFoundError:
-        print('ERROR: file not found: ', str(input_file))
-        return None
-    except yaml.YAMLError as e:
-        print(f'ERROR: error in YAML file {input_file}: {e}')
-        return None
-    except IOError as e:
-        print('ERROR: I/O error({0}): {1}'.format(e.errno, e.strerror))
-        return None
-
-
 def create_files_index(current_dir_item, current_path: Path = Path()):
     files_index = FilesIndex()
     if current_dir_item['type'] == 'dir':
@@ -145,6 +121,7 @@ def search_changes_in_fs_struct(initial_list, new_list):
     deleted_files: list[tuple[Path]] = []
     moved_files: list[tuple[Path, Path, str]] = []
     changed_files: list[tuple[Path, typing.Any]] = []
+    new_files: list[tuple[Path]] = []
 
     # search
     for key, data in initial_list.full.items():
@@ -153,7 +130,7 @@ def search_changes_in_fs_struct(initial_list, new_list):
             # file present
             if data['path'] != new_list.full[key]['path']:
                 # but path is changed - file move to other dir
-                moved_files.append((data['path'], new_list.full[key]['path'], 'move', ))
+                moved_files.append((data['path'], new_list.full[key]['path'], 'move',))
         else:
             # file lost - try search in other lists
             found = False
@@ -201,47 +178,20 @@ def search_changes_in_fs_struct(initial_list, new_list):
                             move_type.append('move')
                         if data['path'].name != found_item['path'].name:
                             move_type.append('rename')
-                        moved_files.append((data['path'], found_item['path'], ','.join(move_type), ))
+                        moved_files.append((data['path'], found_item['path'], ','.join(move_type),))
                         found = True
                         break
 
             if not found:
-                deleted_files.append((data['path'], ))
+                deleted_files.append((data['path'],))
 
-    return changed_files, moved_files, deleted_files
+    # Search for new files
+    for key, data in new_list.only_path.items():
+        if key not in initial_list.only_path:
+            # File is present in the new structure but not in the initial structure
+            new_files.append((data['path'], ))
 
-
-def save_to_csv(file_path: Path, data):
-    with open(file_path, 'w', newline='', encoding='utf-8') as csv_file:
-        csv_writer = csv.writer(csv_file, delimiter=';')
-        csv_writer.writerows(data)
-
-
-def print_file_list(header: str, files_list: list[tuple], csv_filename=None):
-    """
-    Print a list of files and optionally save it to a CSV file.
-    """
-    if not files_list:
-        print(f"{header} not detected")
-        return
-
-    list_str = [list(map(str, item)) for item in files_list]
-    print(f"{header} list:")
-    for item in list_str:
-        print(';   '.join(item))
-
-    if csv_filename:
-        save_to_csv(Path(csv_filename), list_str)
-        print(f"{header} saved to {csv_filename}")
-
-
-def print_result(changed_files, moved_files, deleted_files):
-    """
-    Print and optionally save the results of changed, moved, and deleted files.
-    """
-    print_file_list("Changed files", changed_files, "changed.csv")
-    print_file_list("Moved files", moved_files, "moved.csv")
-    print_file_list("Deleted files", deleted_files, "deleted.csv")
+    return changed_files, moved_files, deleted_files, new_files
 
 
 def main():
@@ -249,10 +199,10 @@ def main():
     old_yaml = Path(arguments['--old'])
     new_yaml = Path(arguments['--new'])
     if not old_yaml.is_file():
-        print("The specified YAML files do not exist:"+str(old_yaml))
+        print("The specified YAML files do not exist:" + str(old_yaml))
         exit(10)
     elif not new_yaml.is_file():
-        print("The specified YAML files do not exist:"+str(new_yaml))
+        print("The specified YAML files do not exist:" + str(new_yaml))
         exit(11)
 
     initial_data = load_yaml(old_yaml)
@@ -267,8 +217,8 @@ def main():
         print('Parse new')
         new_file_list = create_files_index({'type': 'dir', 'contents': new_data})
         # Search diff
-        changed_files, moved_files, deleted_files = search_changes_in_fs_struct(initial_file_list, new_file_list)
-        print_result(changed_files, moved_files, deleted_files)
+        changed_files, moved_files, deleted_files, new_files = search_changes_in_fs_struct(initial_file_list, new_file_list)
+        print_result(changed_files, moved_files, deleted_files, new_files)
 
 
 if __name__ == "__main__":

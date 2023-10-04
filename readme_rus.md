@@ -19,8 +19,46 @@ TODO
 
 
 
-СИНХРОНИЗАЦИЯ:
+СИНХРОНИЗАЦИЯ, wip, old:
 ==============
+
+
+eng shot description
+================
+
+File sync with smart compare and resolve conflict.
+Sync from multiple 'destination'.
+
+```
+Concept:
+  sync folder content special file (in root), this file content:
+    sync source ID.
+    list of all destination and date of last sync time of all destination.
+    md5 from all "special file (in folder)".
+    ??? list of all files in all destination and 'modification date' of this files.
+
+  all folder content "special file (in folder)", this file content:
+    folder ID.
+    md5 sum from all files of this folder.
+
+  sync step:
+    1. check present and load special file from root.
+    2. compare 'source ID' and 'source ID' in destination.
+    3. check destination to changes.
+      3.1. recalc MD5 of all files in 'destination'.
+      3.2. compare MD5 and MD5 from "special file (in folder)".
+      3.3. if detect changes:
+      3.3.1 then for this file make flag 'sync conflict'.
+      3.1.2. special addon:
+      3.1.3. if file not present in folder and in folder detect new file with some MD5 - make rename procedure.
+      3.1.4. after this analiz - add all new file as new file.
+      3.1.5. add to remove list all lost files.
+    4. check source to changes.
+    4.1. see 3.1...
+    5. for all files
+    5.1. if flag 'sync conflict' present only in source - copy to destination.
+    5.2. if flag 'sync conflict' present both - warn about conflict or copy to destination as 'conflict copy'.
+```
 
 Термины
 =============
