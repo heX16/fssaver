@@ -55,6 +55,14 @@ def load_yaml(input_file, encoding='utf-8'):
     return store
 
 
+def get_file_content(file_name, encoding='utf-8'):
+    try:
+        with open(file_name, 'r', encoding=encoding) as f:
+            return str(f.read())
+    except IOError:
+        return ''
+
+
 def save_to_yaml(data, output_file, encoding='utf-8'):
     data = yaml.dump(data, default_flow_style=False, allow_unicode=True)
     if get_file_content(output_file, encoding=encoding) != data:

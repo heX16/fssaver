@@ -144,7 +144,7 @@ def create_files_index(current_dir_item, current_path: Path = Path()):
 def search_changes_in_fs_struct(initial_list, new_list):
     deleted_files: list[Path] = []
     moved_files: list[tuple[Path, Path]] = []
-    changed_files: list[Path] = []
+    changed_files: list[tuple[Path, Any]] = []
 
     # search
     for key, data in initial_list.full.items():
@@ -164,14 +164,15 @@ def search_changes_in_fs_struct(initial_list, new_list):
                 # That file hasn't been moved. It's just changed, but it's still there.
                 # Of course, there is a chance that a file was moved and another file was put in its place.
                 # But such complicated cases will not be considered - there will be too many erroneous decisions.
-                changes = []
                 found = True
+
+                changes = []
                 new = new_list.only_path[path_key]
                 old = initial_list.only_path[path_key]
 
                 if old['type'] != new['type']:
-                    found = False
                     changes.append('type')
+                    found = False
                 else:
                     if old['size'] != new['size']:
                         changes.append('size')
@@ -205,7 +206,7 @@ def search_changes_in_fs_struct(initial_list, new_list):
 
 
 def save_to_csv(file_path: Path, data):
-    with open(file_path, 'w', newline='') as csv_file:
+    with open(file_path, 'w', newline='', encoding='utf-8') as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=';')
         csv_writer.writerows(data)
 
@@ -247,23 +248,27 @@ def main():
     arguments = docopt(__doc__)
     old_yaml = Path(arguments['--old'])
     new_yaml = Path(arguments['--new'])
-    if not old_yaml.is_file() or not new_yaml.is_file():
-        print("The specified YAML files do not exist.")
-    else:
-        initial_data = load_yaml(old_yaml)
-        new_data = load_yaml(new_yaml)
+    if not old_yaml.is_file():
+        print("The specified YAML files do not exist:"+str(old_yaml))
+        exit(10)
+    elif not new_yaml.is_file():
+        print("The specified YAML files do not exist:"+str(new_yaml))
+        exit(11)
 
-        if initial_data is None or new_data is None:
-            print("Error loading YAML files.")
-        else:
-            # Create special file index
-            print('Parse old')
-            initial_file_list = create_files_index({'type': 'dir', 'contents': initial_data})
-            print('Parse new')
-            new_file_list = create_files_index({'type': 'dir', 'contents': new_data})
-            # Search diff
-            changed_files, moved_files, deleted_files = search_changes_in_fs_struct(initial_file_list, new_file_list)
-            print_result(changed_files, moved_files, deleted_files)
+    initial_data = load_yaml(old_yaml)
+    new_data = load_yaml(new_yaml)
+
+    if initial_data is None or new_data is None:
+        print("Error loading YAML files.")
+    else:
+        # Create special file index
+        print('Parse old')
+        initial_file_list = create_files_index({'type': 'dir', 'contents': initial_data})
+        print('Parse new')
+        new_file_list = create_files_index({'type': 'dir', 'contents': new_data})
+        # Search diff
+        changed_files, moved_files, deleted_files = search_changes_in_fs_struct(initial_file_list, new_file_list)
+        print_result(changed_files, moved_files, deleted_files)
 
 
 if __name__ == "__main__":
