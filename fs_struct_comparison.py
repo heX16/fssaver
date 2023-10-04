@@ -11,7 +11,7 @@ Options:
   --new=<new_yaml>  Path to the new YAML file.
   --dup         Search duplications (wip)
 """
-from typing import List, Any, Tuple, Iterable
+import typing
 
 # TODO: add search duplications mode
 
@@ -143,8 +143,8 @@ def create_files_index(current_dir_item, current_path: Path = Path()):
 
 def search_changes_in_fs_struct(initial_list, new_list):
     deleted_files: list[tuple[Path]] = []
-    moved_files: list[tuple[Path, Path]] = []
-    changed_files: list[tuple[Path, Any]] = []
+    moved_files: list[tuple[Path, Path, str]] = []
+    changed_files: list[tuple[Path, typing.Any]] = []
 
     # search
     for key, data in initial_list.full.items():
@@ -153,7 +153,7 @@ def search_changes_in_fs_struct(initial_list, new_list):
             # file present
             if data['path'] != new_list.full[key]['path']:
                 # but path is changed - file move to other dir
-                moved_files.append((data['path'], new_list.full[key]['path']))
+                moved_files.append((data['path'], new_list.full[key]['path'], 'move', ))
         else:
             # file lost - try search in other lists
             found = False
@@ -195,7 +195,13 @@ def search_changes_in_fs_struct(initial_list, new_list):
                         continue
                     if key_ext in new_list.indexes[keys_pack_i]:
                         found_item = new_list.indexes[keys_pack_i][key_ext]
-                        moved_files.append((data['path'], found_item['path']))
+                        move_type = []
+                        # renamed_files
+                        if data['path'].parent != found_item['path'].parent:
+                            move_type.append('move')
+                        if data['path'].name != found_item['path'].name:
+                            move_type.append('rename')
+                        moved_files.append((data['path'], found_item['path'], ','.join(move_type), ))
                         found = True
                         break
 
