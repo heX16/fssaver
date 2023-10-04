@@ -86,13 +86,13 @@ def create_file_structure(path: Path):
 
     # Load the existing YAML file if it exists
     if yaml_path.exists():
-        with open(yaml_path, 'r') as f:
-            try:
-                file_structure = yaml.safe_load(f)
-                yaml_loaded = True
-            except yaml.YAMLError as e:
-                print(f"Error loading existing YAML file {yaml_path}: {e}")
-                return
+        try:
+            file_structure = load_yaml(yaml_path)
+        except yaml.YAMLError as e:
+            print(f"Error loading existing YAML file {yaml_path}: {e}")
+            return
+        if file_structure == {}:
+            return
     else:
         file_structure = {}
 
@@ -166,6 +166,18 @@ def save_to_yaml(data, output_file, encoding='utf-8'):
     if get_file_content(output_file, encoding=encoding) != data:
         with open(output_file, 'w', encoding=encoding) as f:
             f.write(data)
+
+
+def load_yaml(input_file, encoding='utf-8'):
+    try:
+        with open(input_file, 'r', encoding=encoding) as f:
+            store = yaml.safe_load(f)
+            if store is None:
+                store = {}
+    except IOError as e:
+        print("ERROR: I/O error({0}): {1}".format(e.errno, e.strerror))
+        store = {}
+    return store
 
 
 def main():

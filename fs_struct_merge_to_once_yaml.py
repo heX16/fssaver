@@ -37,14 +37,23 @@ def merge_contents(path_to_index_hash: Path):
     return index_data
 
 
-def load_yaml(file_path: Path):
+def load_yaml(input_file, encoding='utf-8'):
     try:
-        print('LOADING: ', str(file_path))
-        with open(file_path, 'r') as file:
-            return yaml.safe_load(file)
+        with open(input_file, 'r', encoding=encoding) as f:
+            store = yaml.safe_load(f)
+            if store is None:
+                store = {}
     except FileNotFoundError:
-        print('ERROR: fail index loading: ', str(file_path))
-        return None
+        print('ERROR: file not found: ', str(input_file))
+        return {}
+    except yaml.YAMLError as e:
+        print(f'ERROR: error in YAML file {input_file}: {e}')
+        return {}
+    except IOError as e:
+        print('ERROR: I/O error({0}): {1}'.format(e.errno, e.strerror))
+        store = {}
+    return store
+
 
 
 def save_to_yaml(data, output_file):

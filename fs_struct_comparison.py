@@ -110,11 +110,18 @@ class FilesIndex:
             self.indexes[i].update(files_index.indexes[i])
 
 
-def load_yaml(file_path: Path):
+def load_yaml(input_file, encoding='utf-8'):
     try:
-        with open(file_path, 'r') as file:
-            return yaml.safe_load(file)
+        with open(input_file, 'r', encoding=encoding) as f:
+            return yaml.safe_load(f)
     except FileNotFoundError:
+        print('ERROR: file not found: ', str(input_file))
+        return None
+    except yaml.YAMLError as e:
+        print(f'ERROR: error in YAML file {input_file}: {e}')
+        return None
+    except IOError as e:
+        print('ERROR: I/O error({0}): {1}'.format(e.errno, e.strerror))
         return None
 
 
