@@ -5,7 +5,6 @@ deleted.csv;size,mtime
 fs_struct_comparison.py;size,mtime
 fs_struct_merge_to_once_yaml.py;size,mtime
 fs_struct_to_yaml.py;size,mtime
-fs_struct_to_yaml_old.py;size,mtime
 index_hash_all.yaml;size,mtime
 index_hash_all_old.yaml;size,mtime,ctime
 moved.csv;size,mtime

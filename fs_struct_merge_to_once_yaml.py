@@ -13,7 +13,7 @@ import yaml
 from pathlib import Path
 from docopt import docopt
 
-g_yaml_name = 'index_hash.yaml'
+g_yaml_name = '.index_hash.yaml'
 
 
 def merge_contents(path_to_index_hash: Path):

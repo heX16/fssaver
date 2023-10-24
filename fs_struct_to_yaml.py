@@ -22,7 +22,7 @@ from pathlib import Path
 from docopt import docopt
 from datetime import datetime
 
-g_yaml_name = 'index_hash.yaml'
+g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
 g_ignore_linux_hide_files = True
 
