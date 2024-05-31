@@ -1,23 +1,25 @@
-"""File Structure to YAML, a separate file for each directory
+"""
+File Structure to YAML, a separate file for each directory
 
 Usage:
-  fs_structure_to_yaml.py <start_directory>
+  fs_structure_to_yaml.py <start_directory> [--retries=<retries>] [--retries-pause=<retries-pause>] [--no-recursion]
   fs_structure_to_yaml.py -h | --help
 
 Options:
   -h --help     Show this help message and exit.
+  --no-recursion  Do not recurse into directories.
+  --retries=<retries>     Number of retries for reading files [default: 1].
+  --retries-pause=<retries-pause>         Pause duration between retries in seconds [default: 1].
 """
 
 # TODO: search silent changes. add recheck MD5 for unchanged files and warnings if file corrupted
-
-# TODO: add flag: "--no-recursion" / "-r"
 
 # TODO: add flag: "-i" (ignore all)
 # TODO: add flag: "--ignore-linux-hide"
 # TODO: add flag: "--ignore-wnd-hide"
 
 # TODO: add simple update function:
-#       varios modes: update all date, update MD5
+#       various modes: update all date, update MD5
 
 import os
 import yaml
@@ -25,6 +27,7 @@ import hashlib
 from pathlib import Path
 from docopt import docopt
 from datetime import datetime
+import time
 
 g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
@@ -32,25 +35,35 @@ g_ignore_linux_hide_files = True
 
 
 def time_trim_ms(t: datetime or float or int):
-    if type(t) == float:
+    if isinstance(t, float):
         return int(t)
-    elif type(t) == datetime:
+    elif isinstance(t, datetime):
         return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second)
     return t
 
 
-def update_record(r: dict, data: Path) -> dict:
+def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> dict:
     """
-    all:
-        type = dir|file|unknown|error
-        ctime
-        mtime
-        symlink = True|_NotExist_
-    file:
-        md5
-        size
-    dir:
-        contents
+    Updates the record dictionary with file or directory information.
+
+    Args:
+        r (dict): The existing record dictionary.
+        data (Path): The file or directory path.
+
+    Returns:
+        dict: Updated record dictionary.
+
+    Info:
+        all:
+            type = dir|file|unknown|error
+            ctime
+            mtime
+            symlink = True|_NotExist_
+        file:
+            md5
+            size
+        dir:
+            contents
     """
 
     if data.is_dir():
@@ -64,8 +77,8 @@ def update_record(r: dict, data: Path) -> dict:
         if (r.get('size', -1) != data.stat().st_size or
                 r.get('ctime', 0) != time_trim_ms(data.stat().st_ctime) or
                 r.get('mtime', 0) != time_trim_ms(data.stat().st_mtime)):
-            # if date change - recalc hash
-            r['md5'] = calculate_md5(data)
+            # If dates change, recalculate hash
+            r['md5'] = read_file_and_calculate_md5_retry(data, retries, retries_pause)
         r['size'] = data.stat().st_size
         if 'contents' in r:
             del r['contents']
@@ -84,7 +97,7 @@ def update_record(r: dict, data: Path) -> dict:
     return r
 
 
-def create_file_structure(path: Path):
+def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, retries_pause: int = 1):
     yaml_path = path / g_yaml_name
     yaml_loaded = False
 
@@ -92,6 +105,7 @@ def create_file_structure(path: Path):
     if yaml_path.exists():
         try:
             file_structure = load_yaml(yaml_path)
+            yaml_loaded = True
         except yaml.YAMLError as e:
             print(f"Error loading existing YAML file {yaml_path}: {e}")
             return
@@ -118,14 +132,14 @@ def create_file_structure(path: Path):
         if item.name in items_to_delete:
             items_to_delete.remove(item.name)
 
-        if not (item.name in file_structure):
-            # add
+        if item.name not in file_structure:
+            # Add new item
             print('add:', item.name)
-            file_structure[item.name] = update_record({}, item)
+            file_structure[item.name] = update_record({}, item, retries, retries_pause)
         else:
-            # update
+            # Update existing item
             print('update:', item.name)
-            file_structure[item.name] = update_record(file_structure[item.name], item)
+            file_structure[item.name] = update_record(file_structure[item.name], item, retries, retries_pause)
 
     # Remove items that were not encountered in the current directory
     for item_to_delete in items_to_delete:
@@ -143,18 +157,42 @@ def create_file_structure(path: Path):
     for name, content in file_structure.items():
         if content['type'] == 'dir':
             dir_path = path / name
-            # Recursion
-            create_file_structure(dir_path)
+            if recursion:
+                # Recursion!
+                create_file_structure(dir_path, recursion=recursion, retries=retries, retries_pause=retries_pause)
         file_structure[name] = None  # remove item from memory (for optimization)
 
+def read_file_and_calculate_md5(file_path: Path) -> str:
+    """
+    Calculate the MD5 hash of a file.
 
-def calculate_md5(file_path):
+    :param file_path: Path to the file.
+    :return: MD5 hash of the file.
+    """
     md5_hash = hashlib.md5()
     with open(file_path, "rb") as f:
         while chunk := f.read(g_chuck_size):
             md5_hash.update(chunk)
     return md5_hash.hexdigest()
 
+def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pause: float) -> str:
+    """
+    Calculate the MD5 hash of a file with retry mechanism in case of PermissionError.
+
+    :param file_path: Path to the file.
+    :param retries: Number of retries for reading the file.
+    :param retries_pause: Pause duration between retries in seconds.
+    :return: MD5 hash of the file.
+    """
+    for attempt in range(retries + 1):
+        try:
+            return read_file_and_calculate_md5(file_path)
+        except PermissionError:
+            if attempt < retries:
+                print(f"PermissionError encountered. Retrying in {retries_pause} seconds...")
+                time.sleep(retries_pause)
+            else:
+                raise
 
 def get_file_content(file_name, encoding='utf-8'):
     try:
@@ -178,7 +216,7 @@ def load_yaml(input_file, encoding='utf-8'):
             if store is None:
                 store = {}
     except IOError as e:
-        print("ERROR: I/O error({0}): {1}".format(e.errno, e.strerror))
+        print(f"ERROR: I/O error({e.errno}): {e.strerror}")
         store = {}
     return store
 
@@ -187,10 +225,13 @@ def main():
     arguments = docopt(__doc__)
 
     start_directory = arguments['<start_directory>']
+    recursion = not bool(arguments['--no-recursion'])
+    retries = int(arguments['--retries'])
+    retries_pause = int(arguments['--retries-pause'])
     start_path = Path(start_directory)
 
     if start_path.exists() and start_path.is_dir():
-        create_file_structure(start_path)
+        create_file_structure(start_path, recursion=recursion, retries=retries, retries_pause=retries_pause)
     else:
         print("The specified path does not exist or is not a directory.")
 
