@@ -42,7 +42,7 @@ def merge_contents(path_to_index_hash: Path):
     return index_data
 
 
-def load_yaml(input_file, encoding='utf-8'):
+def load_yaml(input_file: Path, encoding='utf-8'):
     try:
         with open(input_file, 'r', encoding=encoding) as f:
             store = yaml.safe_load(f)
@@ -52,10 +52,10 @@ def load_yaml(input_file, encoding='utf-8'):
         print('ERROR: file not found: ', str(input_file))
         return {}
     except yaml.YAMLError as e:
-        print(f'ERROR: error in YAML file {input_file}: {e}')
+        print(f'ERROR: error in YAML file {str(input_file)}: {e}')
         return {}
     except IOError as e:
-        print('ERROR: I/O error({0}): {1}'.format(e.errno, e.strerror))
+        print(f'ERROR: I/O error({e.errno})! File: {str(input_file)}. Error: {e.strerror}')
         store = {}
     return store
 
