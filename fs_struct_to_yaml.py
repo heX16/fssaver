@@ -8,12 +8,16 @@ Options:
   -h --help     Show this help message and exit.
 """
 
-# TODO: change yaml structure - remove first item.
+# TODO: search silent changes. add recheck MD5 for unchanged files and warnings if file corrupted
 
-# TODO: add smart update - load, compare, and update to up to day state
+# TODO: add flag: "--no-recursion" / "-r"
+
+# TODO: add flag: "-i" (ignore all)
+# TODO: add flag: "--ignore-linux-hide"
+# TODO: add flag: "--ignore-wnd-hide"
 
 # TODO: add simple update function:
-#       varios modes: update all date, update all md5
+#       varios modes: update all date, update MD5
 
 import os
 import yaml
@@ -128,7 +132,6 @@ def create_file_structure(path: Path):
         del file_structure[item_to_delete]
 
     if yaml_loaded:
-        # print('SKIP(EXISTS):', str(yaml_path))
         print('SAVE UPDATED:', str(yaml_path))
     else:
         print('SAVE NEW:', str(yaml_path))
