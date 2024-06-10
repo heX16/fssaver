@@ -2,6 +2,29 @@ import yaml
 import csv
 from pathlib import Path
 from datetime import datetime
+from datetime import datetime, timezone
+
+
+def get_file_content(file_name, encoding='utf-8'):
+    try:
+        with open(file_name, 'r', encoding=encoding) as f:
+            return str(f.read())
+    except IOError:
+        return ''
+
+
+def save_to_yaml(data, output_file, encoding='utf-8'):
+    data = yaml.dump(data, default_flow_style=False, allow_unicode=True)
+    if get_file_content(output_file, encoding=encoding) != data:
+        with open(output_file, 'w', encoding=encoding) as f:
+            f.write(data)
+
+
+def time_to_iso8601_gmt_str(t: datetime or float or int, separator='_'):
+    if isinstance(t, (float, int)):
+        return datetime.fromtimestamp(t, tz=timezone.utc).strftime(f'%Y-%m-%d{separator}%H:%M:%SZ')
+    elif isinstance(t, datetime):
+        return t.astimezone(timezone.utc).strftime(f'%Y-%m-%d{separator}%H:%M:%SZ')
 
 
 def time_trim_ms(t: datetime or float or int):
@@ -11,20 +34,19 @@ def time_trim_ms(t: datetime or float or int):
         return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second)
     return t
 
-
-def load_yaml(input_file, encoding='utf-8'):
+def load_yaml(input_file, encoding='utf-8', result_on_fail=None):
     try:
         with open(input_file, 'r', encoding=encoding) as f:
             return yaml.safe_load(f)
     except FileNotFoundError:
         print('ERROR: file not found: ', str(input_file))
-        return None
+        return result_on_fail
     except yaml.YAMLError as e:
         print(f'ERROR: error in YAML file {input_file}: {e}')
-        return None
+        return result_on_fail
     except IOError as e:
         print('ERROR: I/O error({0}): {1}'.format(e.errno, e.strerror))
-        return None
+        return result_on_fail
 
 
 def save_to_csv(file_path: Path, data):

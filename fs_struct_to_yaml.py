@@ -28,24 +28,11 @@ from pathlib import Path
 from docopt import docopt
 from datetime import datetime, timezone
 import time
+from fs_struct_utils import *
 
 g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
 g_ignore_linux_hide_files = True
-
-
-def time_to_iso8601_gmt_str(t: datetime or float or int, separator='_'):
-    if isinstance(t, (float, int)):
-        return datetime.fromtimestamp(t, tz=timezone.utc).strftime(f'%Y-%m-%d{separator}%H:%M:%SZ')
-    elif isinstance(t, datetime):
-        return t.astimezone(timezone.utc).strftime(f'%Y-%m-%d{separator}%H:%M:%SZ')
-
-def time_trim_ms(t: datetime or float or int):
-    if isinstance(t, float):
-        return int(t)
-    elif isinstance(t, datetime):
-        return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second)
-    return t
 
 
 def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> dict:
@@ -64,7 +51,7 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
             type = dir|file|unknown|error
             ctime
             mtime
-            symlink = True|_NotExist_
+            symlink = True|False(field not present)
         file:
             md5
             size
@@ -111,14 +98,10 @@ def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, 
 
     # Load the existing YAML file if it exists
     if yaml_path.exists():
-        try:
-            file_structure = load_yaml(yaml_path)
-            yaml_loaded = True
-        except yaml.YAMLError as e:
-            print(f"Error loading existing YAML file {yaml_path}: {e}")
+        file_structure = load_yaml(yaml_path)
+        if file_structure == None:
             return
-        if file_structure == {}:
-            return
+        yaml_loaded = True
     else:
         file_structure = {}
 
@@ -128,7 +111,7 @@ def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, 
     # Iterate files and collect information
     for item in path.iterdir():
 
-        # Use igittigitt library for ignore (implement this if needed)
+        # TODO: Use igittigitt library for ignore
         if (
                 (item.is_dir() and item.name == '.git') or
                 (item.name.startswith('.') and g_ignore_linux_hide_files) or
@@ -170,6 +153,7 @@ def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, 
                 create_file_structure(dir_path, recursion=recursion, retries=retries, retries_pause=retries_pause)
         file_structure[name] = None  # remove item from memory (for optimization)
 
+
 def read_file_and_calculate_md5(file_path: Path) -> str:
     """
     Calculate the MD5 hash of a file.
@@ -202,31 +186,6 @@ def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pau
             else:
                 raise
 
-def get_file_content(file_name, encoding='utf-8'):
-    try:
-        with open(file_name, 'r', encoding=encoding) as f:
-            return str(f.read())
-    except IOError:
-        return ''
-
-
-def save_to_yaml(data, output_file, encoding='utf-8'):
-    data = yaml.dump(data, default_flow_style=False, allow_unicode=True)
-    if get_file_content(output_file, encoding=encoding) != data:
-        with open(output_file, 'w', encoding=encoding) as f:
-            f.write(data)
-
-
-def load_yaml(input_file, encoding='utf-8'):
-    try:
-        with open(input_file, 'r', encoding=encoding) as f:
-            store = yaml.safe_load(f)
-            if store is None:
-                store = {}
-    except IOError as e:
-        print(f"ERROR: I/O error({e.errno}): {e.strerror}")
-        store = {}
-    return store
 
 
 def main():
