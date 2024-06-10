@@ -1,15 +1,17 @@
-'''
+"""
 File Structure to YAML
 
 Usage:
-  fs_struct_merge_to_once_yaml.py <start_directory> [--file=<yaml_file>] [--not-add-date]
+  fs_struct_merge_to_once_yaml.py <start_directory> [--file=<yaml_file>] [--not-add-date] [--retries=<retries>] [--retries-pause=<retries-pause>]
   fs_struct_merge_to_once_yaml.py -h | --help
 
 Options:
   -h --help     Show this help message and exit.
   --file=<yaml_file> -f=<yaml_file>  Specify the YAML file name (default: 'index_hash_all.yaml').
   --not-add-date --nodate            Not add the current date in the YAML file name.
-'''
+  --retries=<retries>                Number of retries for reading files [default: 1].
+  --retries-pause=<retries-pause>    Pause duration between retries in seconds [default: 1].
+"""
 
 #TODO: add date to final file
 
@@ -17,11 +19,12 @@ import yaml
 from pathlib import Path
 from docopt import docopt
 import datetime
+import time
 
 g_yaml_name = '.index_hash.yaml'
 
 
-def merge_contents(path_to_index_hash: Path):
+def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int):
     if not path_to_index_hash.exists():
         print('WARN: folder not found: ', str(path_to_index_hash))
         return {
@@ -32,32 +35,37 @@ def merge_contents(path_to_index_hash: Path):
                 }
         }
 
-    index_data = load_yaml(path_to_index_hash)
+    index_data = load_yaml(path_to_index_hash, retries, retries_pause)
 
     for file_name, file_data in index_data.items():
         if file_data['type'] == 'dir' or (file_data['type'] == 'directory'):
-            recursion_indexes = merge_contents(Path(path_to_index_hash).parent / file_name / g_yaml_name)
+            recursion_indexes = merge_contents(Path(path_to_index_hash).parent / file_name / g_yaml_name, retries, retries_pause)
             index_data[file_name]['contents'] = recursion_indexes
 
     return index_data
 
 
-def load_yaml(input_file: Path, encoding='utf-8'):
-    try:
-        with open(input_file, 'r', encoding=encoding) as f:
-            store = yaml.safe_load(f)
-            if store is None:
-                store = {}
-    except FileNotFoundError:
-        print('ERROR: file not found: ', str(input_file))
-        return {}
-    except yaml.YAMLError as e:
-        print(f'ERROR: error in YAML file {str(input_file)}: {e}')
-        return {}
-    except IOError as e:
-        print(f'ERROR: I/O error({e.errno})! File: {str(input_file)}. Error: {e.strerror}')
-        store = {}
-    return store
+def load_yaml(input_file: Path, retries: int, retries_pause: int, encoding='utf-8'):
+    for attempt in range(retries + 1):
+        try:
+            with open(input_file, 'r', encoding=encoding) as f:
+                store = yaml.safe_load(f)
+                if store is None:
+                    store = {}
+            return store
+        except FileNotFoundError:
+            print('ERROR: file not found: ', str(input_file))
+            return {}
+        except yaml.YAMLError as e:
+            print(f'ERROR: error in YAML file {str(input_file)}: {e}')
+            return {}
+        except IOError as e:
+            if attempt < retries:
+                print(f'ERROR: I/O error({e.errno})! Retrying in {retries_pause} seconds... File: {str(input_file)}. Error: {e.strerror}')
+                time.sleep(retries_pause)
+            else:
+                print(f'ERROR: I/O error({e.errno})! File: {str(input_file)}. Error: {e.strerror}')
+                return {}
 
 
 def get_file_content(file_name, encoding='utf-8'):
@@ -80,14 +88,16 @@ def main():
 
     start_directory = Path(arguments['<start_directory>'])
     yaml_file = Path(arguments['--file'] or 'index_hash_all.yaml')
+    retries = int(arguments['--retries'] or 1)
+    retries_pause = int(arguments['--retries-pause'] or 1)
 
-    merged_structure = merge_contents(start_directory / g_yaml_name)
+    merged_structure = merge_contents(start_directory / g_yaml_name, retries, retries_pause)
 
     if not yaml_file.is_absolute():
         yaml_file = start_directory / yaml_file
 
-    # Check if the '--add-date' option is present
-    if arguments['--not-add-date']==False:
+    # Check if the '--not-add-date' option is present
+    if not arguments['--not-add-date']:
         # Get the current date in the format YYYY-MM-DD
         current_date = datetime.date.today().isoformat()
 
@@ -101,12 +111,9 @@ def main():
         # Create a new Path object with the updated filename
         yaml_file = yaml_file.with_name(new_file_name)
 
-
-
     save_to_yaml(merged_structure, yaml_file)
     print(f'The merged file structure is saved in {yaml_file}')
 
 
 if __name__ == '__main__':
     main()
-
