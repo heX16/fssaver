@@ -15,7 +15,7 @@ Options:
 # TODO: add search duplications mode
 
 # TODO: add Dir rename/move detection.
-#  You should add a count of successfully found subfiles.
+#  should add a count of successfully found subfiles.
 #  if the contents are roughly similar, you can declare that the directory was simply renamed or moved.
 
 # TODO: use `time_trim_ms` in normalize
