@@ -26,13 +26,19 @@ import yaml
 import hashlib
 from pathlib import Path
 from docopt import docopt
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 
 g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
 g_ignore_linux_hide_files = True
 
+
+def time_to_iso8601_gmt_str(t: datetime or float or int, separator='_'):
+    if isinstance(t, (float, int)):
+        return datetime.fromtimestamp(t, tz=timezone.utc).strftime(f'%Y-%m-%d{separator}%H:%M:%SZ')
+    elif isinstance(t, datetime):
+        return t.astimezone(timezone.utc).strftime(f'%Y-%m-%d{separator}%H:%M:%SZ')
 
 def time_trim_ms(t: datetime or float or int):
     if isinstance(t, float):
@@ -74,9 +80,11 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
             del r['md5']
     elif data.is_file():
         r['type'] = 'file'
+        ctime = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_ctime))
+        mtime = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
         if (r.get('size', -1) != data.stat().st_size or
-                r.get('ctime', 0) != time_trim_ms(data.stat().st_ctime) or
-                r.get('mtime', 0) != time_trim_ms(data.stat().st_mtime)):
+                r.get('ctime', '') != ctime or
+                r.get('mtime', '') != mtime):
             # If dates change, recalculate hash
             r['md5'] = read_file_and_calculate_md5_retry(data, retries, retries_pause)
         r['size'] = data.stat().st_size
@@ -92,8 +100,8 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
         if 'symlink' in r:
             del r['symlink']
 
-    r['ctime'] = time_trim_ms(data.stat().st_ctime)
-    r['mtime'] = time_trim_ms(data.stat().st_mtime)
+    r['ctime'] = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_ctime))
+    r['mtime'] = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
     return r
 
 
