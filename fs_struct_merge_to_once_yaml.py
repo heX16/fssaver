@@ -20,6 +20,7 @@ from pathlib import Path
 from docopt import docopt
 import datetime
 import time
+from fs_struct_utils import *
 
 g_yaml_name = '.index_hash.yaml'
 
@@ -35,7 +36,7 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int):
                 }
         }
 
-    index_data = load_yaml(path_to_index_hash, retries, retries_pause)
+    index_data = load_yaml(path_to_index_hash, retries=retries, retries_pause=retries_pause)
 
     for file_name, file_data in index_data.items():
         if file_data['type'] == 'dir' or (file_data['type'] == 'directory'):
@@ -44,43 +45,6 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int):
 
     return index_data
 
-
-def load_yaml(input_file: Path, retries: int, retries_pause: int, encoding='utf-8'):
-    for attempt in range(retries + 1):
-        try:
-            with open(input_file, 'r', encoding=encoding) as f:
-                store = yaml.safe_load(f)
-                if store is None:
-                    store = {}
-            return store
-        except FileNotFoundError:
-            print('ERROR: file not found: ', str(input_file))
-            return {}
-        except yaml.YAMLError as e:
-            print(f'ERROR: error in YAML file {str(input_file)}: {e}')
-            return {}
-        except IOError as e:
-            if attempt < retries:
-                print(f'ERROR: I/O error({e.errno})! Retrying in {retries_pause} seconds... File: {str(input_file)}. Error: {e.strerror}')
-                time.sleep(retries_pause)
-            else:
-                print(f'ERROR: I/O error({e.errno})! File: {str(input_file)}. Error: {e.strerror}')
-                return {}
-
-
-def get_file_content(file_name, encoding='utf-8'):
-    try:
-        with open(file_name, 'r', encoding=encoding) as f:
-            return str(f.read())
-    except IOError:
-        return ''
-
-
-def save_to_yaml(data, output_file, encoding='utf-8'):
-    data = yaml.dump(data, default_flow_style=False, allow_unicode=True)
-    if get_file_content(output_file, encoding=encoding) != data:
-        with open(output_file, 'w', encoding=encoding) as f:
-            f.write(data)
 
 
 def main():

@@ -34,19 +34,27 @@ def time_trim_ms(t: datetime or float or int):
         return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second)
     return t
 
-def load_yaml(input_file, encoding='utf-8', result_on_fail=None):
-    try:
-        with open(input_file, 'r', encoding=encoding) as f:
-            return yaml.safe_load(f)
-    except FileNotFoundError:
-        print('ERROR: file not found: ', str(input_file))
-        return result_on_fail
-    except yaml.YAMLError as e:
-        print(f'ERROR: error in YAML file {input_file}: {e}')
-        return result_on_fail
-    except IOError as e:
-        print('ERROR: I/O error({0}): {1}'.format(e.errno, e.strerror))
-        return result_on_fail
+def load_yaml(input_file: Path, retries: int = 0, retries_pause: int = 0, encoding='utf-8', return_on_fail=None):
+    for attempt in range(retries + 1):
+        try:
+            with open(input_file, 'r', encoding=encoding) as f:
+                store = yaml.safe_load(f)
+                if store is None:
+                    store = return_on_fail
+            return store
+        except FileNotFoundError:
+            print('ERROR: file not found: ', str(input_file))
+            return return_on_fail
+        except yaml.YAMLError as e:
+            print(f'ERROR: error in YAML file {str(input_file)}: {e}')
+            return return_on_fail
+        except IOError as e:
+            if attempt < retries:
+                print(f'ERROR: I/O error({e.errno})! Retrying in {retries_pause} seconds... File: {str(input_file)}. Error: {e.strerror}')
+                time.sleep(retries_pause)
+            else:
+                print(f'ERROR: I/O error({e.errno})! File: {str(input_file)}. Error: {e.strerror}')
+                return return_on_fail
 
 
 def save_to_csv(file_path: Path, data):
