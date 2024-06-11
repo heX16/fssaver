@@ -16,16 +16,18 @@ TODO
 
 
 ## fs_struct_to_yaml.py
-g_meta_info_name = '%>strcture information<%'
 
-# TODO: search silent changes. add recheck MD5 for unchanged files and warnings if file corrupted
+TODO: add more flexibility - def filter_dir(path: Path) -> bool:
 
-# TODO: add flag: "-i" (ignore all)
-# TODO: add flag: "--ignore-linux-hide"
-# TODO: add flag: "--ignore-wnd-hide"
+`g_meta_info_name = '?> sfs info <?'`
 
-# TODO: add simple update function:
-#       various modes: update all date, update MD5
+TODO: search silent changes. add recheck MD5 for unchanged files and warnings if file corrupted
+
+TODO: add flag: "-i" (ignore all)
+TODO: add flag: "--ignore-linux-hide"
+TODO: add flag: "--ignore-wnd-hide"
+
+TODO: add simple update function: various modes: update all date, update MD5
 
 
 

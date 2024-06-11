@@ -25,6 +25,12 @@ g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
 g_ignore_linux_hide_files = True
 
+def filter_dir(path: Path) -> bool:
+    # TODO: add more flexibility
+    if path.is_dir() and (path.name == 'System Volume Information' or path.name == '$RECYCLE.BIN'):
+        return True
+    return False
+
 def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> dict:
     """
     Updates the record dictionary with file or directory information.
@@ -51,6 +57,9 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
     """
 
     if data.is_dir():
+        if filter_dir(data):
+            r = {'type': 'hardcoded_skip'}
+            return r
         r['type'] = 'dir'
         if 'size' in r:
             del r['size']
@@ -88,8 +97,11 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
     r['mtime'] = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
     return r
 
-
 def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, retries_pause: int = 1):
+    if filter_dir(path):
+        print('HARDCODED SKIP:', str(path))
+        return
+
     yaml_path = path / g_yaml_name
     yaml_loaded = False
 
@@ -184,7 +196,8 @@ def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pau
                 print(f"PermissionError encountered. Retrying in {retries_pause} seconds...")
                 time.sleep(retries_pause)
             else:
-                raise
+                return (False, True)
+                # TODO: raise
 
 
 
