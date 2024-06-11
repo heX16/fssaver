@@ -12,15 +12,6 @@ Options:
   --retries-pause=<retries-pause>         Pause duration between retries in seconds [default: 1].
 """
 
-# TODO: search silent changes. add recheck MD5 for unchanged files and warnings if file corrupted
-
-# TODO: add flag: "-i" (ignore all)
-# TODO: add flag: "--ignore-linux-hide"
-# TODO: add flag: "--ignore-wnd-hide"
-
-# TODO: add simple update function:
-#       various modes: update all date, update MD5
-
 import os
 import yaml
 import hashlib
@@ -34,7 +25,6 @@ g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
 g_ignore_linux_hide_files = True
 
-
 def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> dict:
     """
     Updates the record dictionary with file or directory information.
@@ -47,16 +37,17 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
         dict: Updated record dictionary.
 
     Info:
-        all:
-            type = dir|file|unknown|error
-            ctime
-            mtime
-            symlink = True|False(field not present)
-        file:
-            md5
-            size
-        dir:
-            contents
+        'file' or 'dir' record:
+            type: str = dir|file|unknown|error
+            ctime: str
+            mtime: str
+            symlink: bool = True|False(field not present)
+            zeros: bool = True|False(field not present)
+        'file':
+            md5: str
+            size: int
+        'dir':
+            contents[]: list
     """
 
     if data.is_dir():
@@ -73,7 +64,13 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
                 r.get('ctime', '') != ctime or
                 r.get('mtime', '') != mtime):
             # If dates change, recalculate hash
-            r['md5'] = read_file_and_calculate_md5_retry(data, retries, retries_pause)
+            md5, zeros = read_file_and_calculate_md5_retry(data, retries, retries_pause)
+            r['md5'] = md5
+            if zeros:
+                r['zeros'] = True
+            else:
+                if 'zeros' in r:
+                    del r['zeros']
         r['size'] = data.stat().st_size
         if 'contents' in r:
             del r['contents']
@@ -154,27 +151,30 @@ def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, 
         file_structure[name] = None  # remove item from memory (for optimization)
 
 
-def read_file_and_calculate_md5(file_path: Path) -> str:
+def read_file_and_calculate_md5(file_path: Path) -> (str, bool):
     """
     Calculate the MD5 hash of a file.
 
     :param file_path: Path to the file.
-    :return: MD5 hash of the file.
+    :return: MD5 hash of the file and zero flag
     """
+    is_zero = True
     md5_hash = hashlib.md5()
     with open(file_path, "rb") as f:
         while chunk := f.read(g_chuck_size):
+            if len(chunk) != chunk.count(b'\x00'):
+                is_zero = False
             md5_hash.update(chunk)
-    return md5_hash.hexdigest()
+    return (md5_hash.hexdigest(), is_zero)
 
-def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pause: float) -> str:
+def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pause: float) -> (str, bool):
     """
     Calculate the MD5 hash of a file with retry mechanism in case of PermissionError.
 
     :param file_path: Path to the file.
     :param retries: Number of retries for reading the file.
     :param retries_pause: Pause duration between retries in seconds.
-    :return: MD5 hash of the file.
+    :return: MD5 hash of the file and zero flag
     """
     for attempt in range(retries + 1):
         try:
