@@ -29,7 +29,7 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int):
     if not path_to_index_hash.exists():
         print('WARN: folder not found: ', str(path_to_index_hash))
         return {
-            str(path_to_index_hash): {
+            str(path_to_index_hash.name): {
                 'type': 'error',
                 'error': 'not_found_dir',
                 'path': str(path_to_index_hash),
@@ -63,7 +63,7 @@ def main():
     # Check if the '--not-add-date' option is present
     if not arguments['--not-add-date']:
         # Get the current date in the format YYYY-MM-DD
-        current_date = datetime.date.today().isoformat()
+        current_date = datetime.now().strftime("%Y-%m-%d")
 
         # Split the file name and extension
         file_name = yaml_file.stem

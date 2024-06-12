@@ -5,6 +5,10 @@ from datetime import datetime
 from datetime import datetime, timezone
 
 
+def dict_del_item(d: dict, item):
+    if item in d:
+        del r[item]
+
 def get_file_content(file_name, encoding='utf-8'):
     try:
         with open(file_name, 'r', encoding=encoding) as f:
@@ -13,11 +17,15 @@ def get_file_content(file_name, encoding='utf-8'):
         return ''
 
 
-def save_to_yaml(data, output_file, encoding='utf-8'):
+def save_to_yaml(data, output_file, encoding='utf-8') -> bool:
+    saved = False
     data = yaml.dump(data, default_flow_style=False, allow_unicode=True)
     if get_file_content(output_file, encoding=encoding) != data:
         with open(output_file, 'w', encoding=encoding) as f:
             f.write(data)
+            saved = True
+            # TODO: try except PermissionError ...
+    return saved
 
 
 def time_to_iso8601_gmt_str(t: datetime or float or int, separator='_'):

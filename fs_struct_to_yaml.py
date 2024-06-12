@@ -48,41 +48,47 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
             ctime: str
             mtime: str
             symlink: bool = True|False(field not present)
-            zeros: bool = True|False(field not present)
         'file':
             md5: str
             size: int
+            zeros: bool = True|False(field not present)
         'dir':
             contents[]: list
     """
 
     if data.is_dir():
+        r['type'] = 'dir'
+        dict_del_item(r, 'size')
+        dict_del_item(r, 'md5')
+        dict_del_item(r, 'zeros')
         if filter_dir(data):
             r = {'type': 'hardcoded_skip'}
             return r
-        r['type'] = 'dir'
-        if 'size' in r:
-            del r['size']
-        if 'md5' in r:
-            del r['md5']
     elif data.is_file():
         r['type'] = 'file'
+        dict_del_item(r, 'contents')
+
         ctime = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_ctime))
         mtime = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
+
         if (r.get('size', -1) != data.stat().st_size or
-                r.get('ctime', '') != ctime or
-                r.get('mtime', '') != mtime):
+            r.get('ctime', '') != ctime or
+            r.get('mtime', '') != mtime):
+
             # If dates change, recalculate hash
-            md5, zeros = read_file_and_calculate_md5_retry(data, retries, retries_pause)
-            r['md5'] = md5
-            if zeros:
-                r['zeros'] = True
+
+            if data.stat().st_size > 0:
+                md5, zeros = read_file_and_calculate_md5_retry(data, retries, retries_pause)
+                r['md5'] = md5
+                if zeros:
+                    r['zeros'] = True
+                else:
+                    dict_del_item(r, 'zeros')
             else:
-                if 'zeros' in r:
-                    del r['zeros']
+                dict_del_item(r, 'md5')
+                dict_del_item(r, 'zeros')
+
         r['size'] = data.stat().st_size
-        if 'contents' in r:
-            del r['contents']
     else:
         r['type'] = 'unknown'
         return r
@@ -90,8 +96,7 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
     if data.is_symlink():
         r['symlink'] = True
     else:
-        if 'symlink' in r:
-            del r['symlink']
+        dict_del_item(r, 'symlink')
 
     r['ctime'] = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_ctime))
     r['mtime'] = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
@@ -145,13 +150,19 @@ def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, 
     for item_to_delete in items_to_delete:
         del file_structure[item_to_delete]
 
-    if yaml_loaded:
-        print('SAVE UPDATED:', str(yaml_path))
-    else:
-        print('SAVE NEW:', str(yaml_path))
 
     # Save the updated structure to the YAML file
-    save_to_yaml(file_structure, yaml_path)
+    if len(file_structure) == 0:
+        print('SKIP EMPTY DIR:', str(yaml_path))
+        saved = False
+    else:
+        saved = save_to_yaml(file_structure, yaml_path)
+
+    if saved:
+        if yaml_loaded:
+            print('SAVE UPDATED:', str(yaml_path))
+        else:
+            print('SAVE NEW:', str(yaml_path))
 
     # Search directory in list (for recursion)
     for name, content in file_structure.items():
@@ -172,12 +183,17 @@ def read_file_and_calculate_md5(file_path: Path) -> (str, bool):
     """
     is_zero = True
     md5_hash = hashlib.md5()
-    with open(file_path, "rb") as f:
-        while chunk := f.read(g_chuck_size):
-            if len(chunk) != chunk.count(b'\x00'):
-                is_zero = False
-            md5_hash.update(chunk)
+    if file_path.stat().st_size > 0:
+        with open(file_path, "rb") as f:
+            while chunk := f.read(g_chuck_size):
+                if len(chunk) != chunk.count(b'\x00'):
+                    is_zero = False
+                md5_hash.update(chunk)
+    else:
+        md5_hash = ''
+        is_zero = False
     return (md5_hash.hexdigest(), is_zero)
+
 
 def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pause: float) -> (str, bool):
     """
