@@ -2,12 +2,13 @@
 File Structure to YAML, a separate file for each directory
 
 Usage:
-  fs_structure_to_yaml.py <start_directory> [--retries=<retries>] [--retries-pause=<retries-pause>] [--no-recursion]
+  fs_structure_to_yaml.py <start_directory> [--no-recursion] [--no-update-md5] [--retries=<retries>] [--retries-pause=<retries-pause>]
   fs_structure_to_yaml.py -h | --help
 
 Options:
-  -h --help     Show this help message and exit.
-  --no-recursion  Do not recurse into directories.
+  -h --help        Show this help message and exit.
+  --no-update-md5  Don't update MD5 if data changed
+  --no-recursion   Do not recurse into directories.
   --retries=<retries>     Number of retries for reading files [default: 1].
   --retries-pause=<retries-pause>         Pause duration between retries in seconds [default: 1].
 """
@@ -31,7 +32,7 @@ def filter_dir(path: Path) -> bool:
         return True
     return False
 
-def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> dict:
+def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retries_pause: float) -> dict:
     """
     Updates the record dictionary with file or directory information.
 
@@ -72,11 +73,14 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
         ctime = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_ctime))
         mtime = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
 
+        # TODO: add `if md5 not present: ...`
         if (r.get('size', -1) != data.stat().st_size or
-            r.get('ctime', '') != ctime or
-            r.get('mtime', '') != mtime):
+           (not no_update_md5 and (
+           r.get('ctime', '') != ctime or
+           r.get('mtime', '') != mtime))):
 
             # If dates or size changed, recalculate hash
+            print(f'calc md5 {no_update_md5}   if1=', r.get('size', -1) != data.stat().st_size, r.get('size', -1), data.stat().st_size) #!!!
 
             if data.stat().st_size > 0:
                 md5, zeros = read_file_and_calculate_md5_retry(data, retries, retries_pause)
@@ -109,7 +113,7 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
     r['mtime'] = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
     return r
 
-def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, retries_pause: int = 1):
+def create_file_structure(path: Path, no_update_md5: bool = False, recursion: bool = True, retries: int = 1, retries_pause: int = 1):
     if filter_dir(path):
         print('HARDCODED SKIP:', str(path))
         return
@@ -147,11 +151,11 @@ def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, 
         if item.name not in file_structure:
             # Add new item
             print('add:', item.name)
-            file_structure[item.name] = update_record({}, item, retries, retries_pause)
+            file_structure[item.name] = update_record({}, item, no_update_md5, retries, retries_pause)
         else:
             # Update existing item
-            print('update:', item.name)
-            file_structure[item.name] = update_record(file_structure[item.name], item, retries, retries_pause)
+            #print('update:', item.name)
+            file_structure[item.name] = update_record(file_structure[item.name], item, no_update_md5, retries, retries_pause)
 
     # Remove items that were not encountered in the current directory
     for item_to_delete in items_to_delete:
@@ -177,7 +181,8 @@ def create_file_structure(path: Path, recursion: bool = True, retries: int = 1, 
             dir_path = path / name
             if recursion:
                 # Recursion!
-                create_file_structure(dir_path, recursion=recursion, retries=retries, retries_pause=retries_pause)
+                create_file_structure(dir_path, no_update_md5=no_update_md5, recursion=recursion,
+                    retries=retries, retries_pause=retries_pause)
         file_structure[name] = None  # remove item from memory (for optimization)
 
 
@@ -235,9 +240,10 @@ def main():
     retries = int(arguments['--retries'])
     retries_pause = int(arguments['--retries-pause'])
     start_path = Path(start_directory)
+    no_update_md5 = bool(arguments['--no-update-md5'])
 
     if start_path.exists() and start_path.is_dir():
-        create_file_structure(start_path, recursion=recursion, retries=retries, retries_pause=retries_pause)
+        create_file_structure(start_path, no_update_md5=no_update_md5, recursion=recursion, retries=retries, retries_pause=retries_pause)
     else:
         print("The specified path does not exist or is not a directory.")
 
