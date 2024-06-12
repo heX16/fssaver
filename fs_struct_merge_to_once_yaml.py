@@ -26,12 +26,21 @@ g_yaml_name = '.index_hash.yaml'
 
 
 def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int):
-    if not path_to_index_hash.exists():
+    if not path_to_index_hash.parent.exists():
         print('WARN: folder not found: ', str(path_to_index_hash))
         return {
             str(path_to_index_hash.name): {
                 'type': 'error',
                 'error': 'not_found_dir',
+                'path': str(path_to_index_hash),
+                }
+        }
+    if not path_to_index_hash.exists():
+        print('WARN: sfs-file not found: ', str(path_to_index_hash))
+        return {
+            str(path_to_index_hash.name): {
+                'type': 'error',
+                'error': 'not_found_sfs_file',
                 'path': str(path_to_index_hash),
                 }
         }

@@ -48,6 +48,7 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
             ctime: str
             mtime: str
             symlink: bool = True|False(field not present)
+            error: str
         'file':
             md5: str
             size: int
@@ -75,11 +76,17 @@ def update_record(r: dict, data: Path, retries: int, retries_pause: float) -> di
             r.get('ctime', '') != ctime or
             r.get('mtime', '') != mtime):
 
-            # If dates change, recalculate hash
+            # If dates or size changed, recalculate hash
 
             if data.stat().st_size > 0:
                 md5, zeros = read_file_and_calculate_md5_retry(data, retries, retries_pause)
-                r['md5'] = md5
+                if md5 != False:
+                    r['md5'] = md5
+                    dict_del_item(r, 'error')
+                else:
+                    dict_del_item(r, 'md5')
+                    r['error'] = True
+
                 if zeros:
                     r['zeros'] = True
                 else:
@@ -204,15 +211,18 @@ def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pau
     :param retries_pause: Pause duration between retries in seconds.
     :return: MD5 hash of the file and zero flag
     """
-    for attempt in range(retries + 1):
+    attempt = 0
+    while attempt <= retries:
         try:
             return read_file_and_calculate_md5(file_path)
-        except PermissionError:
+        except OSError as e:
             if attempt < retries:
-                print(f"PermissionError encountered. Retrying in {retries_pause} seconds...")
+                print(f"WARN: Read error. Retrying {attempt}/{retries} in {retries_pause} seconds... ")
                 time.sleep(retries_pause)
+                attempt += 1
             else:
-                return (False, True)
+                print(f"ERROR: {e.errno} - {e.strerror}")
+                return (False, False)
                 # TODO: raise
 
 
