@@ -18,29 +18,27 @@ def is_linux() -> bool:
     return platform.system().lower() == 'linux'
 
 @contextlib.contextmanager
-def open_with_readonly_handling(filename: str | Path, mode='w'):
+def open_with_attribute_handling(filename: str | Path, mode='w'):
     """
-    A context manager for handling read-only files across different platforms.
+    A context manager for handling read-only and hidden files across different platforms.
 
-    This function allows opening files that might be marked as read-only,
-    temporarily modifying their attributes or permissions to allow writing
-    if necessary, and then restoring the original state after the operation
-    is complete.
+    This function allows opening files that might be marked as read-only or hidden,
+    temporarily modifying their attributes or permissions to allow access and writing
+    if necessary, and then restoring the original state after the operation is complete.
 
     Args:
         filename: The path to the file to be opened.
-        mode: The mode in which to open the file. Defaults to 'r'.
+        mode: The mode in which to open the file. Defaults to 'w'.
 
     Example:
-        >>> with open_with_readonly_handling('example.txt', 'w') as f:
+        >>> with open_with_attribute_handling('example.txt', 'w') as f:
         ...     f.write('Hello, World!')
 
     Note:
         - On Windows, it requires the `pywin32` package to be installed.
-        - The original file state (read-only flag or permissions) is restored
-          after the context manager exits, even if an exception occurs.
+        - The original file state (read-only flag, hidden attribute, or permissions)
+          is restored after the context manager exits, even if an exception occurs.
     """
-
     if is_wnd():
         # `pip install pywin32`
         import win32file
@@ -49,27 +47,36 @@ def open_with_readonly_handling(filename: str | Path, mode='w'):
         # Get current file attributes
         old_attributes = win32file.GetFileAttributes(filename)
         is_readonly = old_attributes & win32con.FILE_ATTRIBUTE_READONLY
+        is_hidden = old_attributes & win32con.FILE_ATTRIBUTE_HIDDEN
 
+        new_attributes = old_attributes
         if is_readonly:
             # Remove read-only attribute
-            win32file.SetFileAttributes(filename, old_attributes & ~win32con.FILE_ATTRIBUTE_READONLY)
+            new_attributes &= ~win32con.FILE_ATTRIBUTE_READONLY
+        if is_hidden:
+            # Remove hidden attribute
+            new_attributes &= ~win32con.FILE_ATTRIBUTE_HIDDEN
+
+        if new_attributes != old_attributes:
+            win32file.SetFileAttributes(filename, new_attributes)
     else:
         # For Unix-like systems
         old_mode = os.stat(filename).st_mode
         is_readonly = not (old_mode & stat.S_IWRITE)
-
         if is_readonly:
             os.chmod(filename, old_mode | stat.S_IWRITE)
+        # Note: Unix-like systems don't have a direct equivalent to the Windows hidden attribute
 
     try:
         with open(filename, mode) as f:
             yield f
     finally:
-        if is_readonly:
-            if is_wnd():
-                # Restore read-only attribute
+        if is_wnd():
+            if is_readonly or is_hidden:
+                # Restore original attributes
                 win32file.SetFileAttributes(filename, old_attributes)
-            else:
+        else:
+            if is_readonly:
                 # Restore original permissions
                 os.chmod(filename, old_mode)
 
