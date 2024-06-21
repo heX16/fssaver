@@ -3,6 +3,75 @@ import csv
 from pathlib import Path
 from datetime import datetime
 from datetime import datetime, timezone
+import os
+import stat
+import contextlib
+
+
+def is_wnd() -> bool:
+    """Check if the operating system is Windows."""
+    return platform.system().lower() == 'windows'
+
+
+def is_linux() -> bool:
+    """Check if the operating system is Linux."""
+    return platform.system().lower() == 'linux'
+
+@contextlib.contextmanager
+def open_with_readonly_handling(filename: str | Path, mode='w'):
+    """
+    A context manager for handling read-only files across different platforms.
+
+    This function allows opening files that might be marked as read-only,
+    temporarily modifying their attributes or permissions to allow writing
+    if necessary, and then restoring the original state after the operation
+    is complete.
+
+    Args:
+        filename: The path to the file to be opened.
+        mode: The mode in which to open the file. Defaults to 'r'.
+
+    Example:
+        >>> with open_with_readonly_handling('example.txt', 'w') as f:
+        ...     f.write('Hello, World!')
+
+    Note:
+        - On Windows, it requires the `pywin32` package to be installed.
+        - The original file state (read-only flag or permissions) is restored
+          after the context manager exits, even if an exception occurs.
+    """
+
+    if is_wnd():
+        # `pip install pywin32`
+        import win32file
+        import win32con
+
+        # Get current file attributes
+        old_attributes = win32file.GetFileAttributes(filename)
+        is_readonly = old_attributes & win32con.FILE_ATTRIBUTE_READONLY
+
+        if is_readonly:
+            # Remove read-only attribute
+            win32file.SetFileAttributes(filename, old_attributes & ~win32con.FILE_ATTRIBUTE_READONLY)
+    else:
+        # For Unix-like systems
+        old_mode = os.stat(filename).st_mode
+        is_readonly = not (old_mode & stat.S_IWRITE)
+
+        if is_readonly:
+            os.chmod(filename, old_mode | stat.S_IWRITE)
+
+    try:
+        with open(filename, mode) as f:
+            yield f
+    finally:
+        if is_readonly:
+            if is_wnd():
+                # Restore read-only attribute
+                win32file.SetFileAttributes(filename, old_attributes)
+            else:
+                # Restore original permissions
+                os.chmod(filename, old_mode)
 
 
 def dict_del_item(d: dict, item):
@@ -21,6 +90,7 @@ def save_to_yaml(data, output_file, encoding='utf-8') -> bool:
     saved = False
     data = yaml.dump(data, default_flow_style=False, allow_unicode=True)
     if get_file_content(output_file, encoding=encoding) != data:
+        #TODO: with open_with_readonly_handling(output_file, 'w', encoding=encoding) as f:
         with open(output_file, 'w', encoding=encoding) as f:
             f.write(data)
             saved = True
