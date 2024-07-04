@@ -80,8 +80,6 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
            r.get('mtime', '') != mtime))):
 
             # If dates or size changed, recalculate hash
-            print(f'calc md5 {no_update_md5}   if1=', r.get('size', -1) != data.stat().st_size, r.get('size', -1), data.stat().st_size) #!!!
-
             if data.stat().st_size > 0:
                 md5, zeros = read_file_and_calculate_md5_retry(data, retries, retries_pause)
                 if md5 != False:
