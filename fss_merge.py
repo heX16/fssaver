@@ -20,7 +20,7 @@ from pathlib import Path
 from docopt import docopt
 import datetime
 import time
-from fs_struct_utils import *
+from fss_utils import *
 
 g_yaml_name = '.index_hash.yaml'
 

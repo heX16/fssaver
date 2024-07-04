@@ -21,7 +21,7 @@ Options:
 # TODO: use `time_trim_ms` in normalize
 
 
-from fs_struct_utils import *
+from fss_utils import *
 import typing
 from pathlib import Path
 from docopt import docopt
