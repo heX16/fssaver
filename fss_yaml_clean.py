@@ -10,16 +10,10 @@ import yaml
 from docopt import docopt
 
 def remove_mtime_if_dir(data):
-    if isinstance(data, dict):
-        if data.get('type') == 'dir':
-            data.pop('mtime', None)
-        for key, value in data.items():
-            # Recursion
-            remove_mtime_if_dir(value)
-    elif isinstance(data, list):
-        for item in data:
-            # Recursion
-            remove_mtime_if_dir(item)
+    for path, info in data.items():
+        if info.get('type') == 'dir':
+            # Remove 'mtime' from directory entries
+            info.pop('mtime', None)
 
 def main():
     arguments = docopt(__doc__)

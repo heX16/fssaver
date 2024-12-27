@@ -25,34 +25,39 @@ from fss_utils import *
 g_yaml_name = '.index_hash.yaml'
 
 
-def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int):
+def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int, root_path: Path):
+    merged_data = {}
     if not path_to_index_hash.parent.exists():
         print('WARN: folder not found: ', str(path_to_index_hash))
-        return {
-            str(path_to_index_hash.name): {
-                'type': 'error',
-                'error': 'not_found_dir',
-                'path': str(path_to_index_hash),
-                }
+        merged_data[str(path_to_index_hash)] = {
+            'type': 'error',
+            'error': 'not_found_dir',
+            'path': str(path_to_index_hash),
         }
+        return merged_data
     if not path_to_index_hash.exists():
         print('WARN: sfs-file not found: ', str(path_to_index_hash))
-        return {
-            str(path_to_index_hash.name): {
-                'type': 'error',
-                'error': 'not_found_sfs_file',
-                'path': str(path_to_index_hash),
-                }
+        merged_data[str(path_to_index_hash)] = {
+            'type': 'error',
+            'error': 'not_found_sfs_file',
+            'path': str(path_to_index_hash),
         }
+        return merged_data
 
     index_data = load_yaml(path_to_index_hash, retries=retries, retries_pause=retries_pause)
 
     for file_name, file_data in index_data.items():
-        if file_data['type'] == 'dir' or (file_data['type'] == 'directory'):
-            recursion_indexes = merge_contents(Path(path_to_index_hash).parent / file_name / g_yaml_name, retries, retries_pause)
-            index_data[file_name]['contents'] = recursion_indexes
+        full_path = path_to_index_hash.parent / file_name
+        relative_path = full_path.relative_to(root_path)
+        merged_data[str(relative_path)] = file_data
 
-    return index_data
+        if file_data['type'] == 'dir' or file_data['type'] == 'directory':
+            # Recursively process the contents of the directory
+            sub_index_file = full_path / g_yaml_name
+            sub_data = merge_contents(sub_index_file, retries, retries_pause, root_path)
+            merged_data.update(sub_data)
+
+    return merged_data
 
 
 
@@ -64,7 +69,7 @@ def main():
     retries = int(arguments['--retries'] or 1)
     retries_pause = int(arguments['--retries-pause'] or 1)
 
-    merged_structure = merge_contents(start_directory / g_yaml_name, retries, retries_pause)
+    merged_structure = merge_contents(start_directory / g_yaml_name, retries, retries_pause, start_directory)
 
     if not yaml_file.is_absolute():
         yaml_file = start_directory / yaml_file

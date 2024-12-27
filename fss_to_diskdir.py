@@ -27,27 +27,28 @@ def convert_iso8601_to_custom_format(iso_time):
     custom_time = custom_time.replace(' 0', ' ').replace('.0', '.')
     return custom_time
 
-def format_output(file_structure, path_prefix=''):
+def format_output(flat_structure):
     output_lines = []
     total_size = 0
     total_files = 0
 
-    for name, data in file_structure.items():
+    for relative_path_str, data in flat_structure.items():
+        relative_path = Path(relative_path_str)
+
         if data['type'] == 'file':
-            full_path = path_prefix + name
+            full_path = str(relative_path)
             size = data['size']
             ctime = convert_iso8601_to_custom_format(data['ctime'])
             output_lines.append(f"{full_path}\t{size}\t{ctime}")
             total_size += size
             total_files += 1
         elif data['type'] == 'dir':
-            full_path = path_prefix + name + '\\'
+            full_path = str(relative_path) + '\\'
             ctime = convert_iso8601_to_custom_format(data['ctime'])
             output_lines.append(f"{full_path}\t0\t{ctime}")
-            sub_output, sub_total_files, sub_total_size = format_output(data['contents'], full_path)
-            output_lines.extend(sub_output)
-            total_size += sub_total_size
-            total_files += sub_total_files
+            # Directories do not contribute to total size and files directly
+            # But if needed, we can count them
+            # total_files += 1
 
     return output_lines, total_files, total_size
 
@@ -66,11 +67,11 @@ def save_to_stdout(output_lines):
 
 def main(yaml_file=None, output_file=None, use_stdin=False, use_stdout=False):
     if use_stdin:
-        file_structure = yaml.safe_load(sys.stdin)
+        flat_structure = yaml.safe_load(sys.stdin)
     else:
-        file_structure = load_yaml(yaml_file)
+        flat_structure = load_yaml(yaml_file)
 
-    output_lines, total_files, total_size = format_output(file_structure)
+    output_lines, total_files, total_size = format_output(flat_structure)
 
     if use_stdout:
         save_to_stdout(output_lines)

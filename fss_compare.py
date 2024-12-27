@@ -101,19 +101,11 @@ class FilesIndex:
             self.indexes[i].update(files_index.indexes[i])
 
 
-def create_files_index(current_dir_item, current_path: Path = Path()):
+def create_files_index(flat_structure: dict):
     files_index = FilesIndex()
-    if current_dir_item['type'] == 'dir':
-        # Enum all items in current_item
-        for name, item in current_dir_item['contents'].items():
-            if item['type'] == 'dir':
-                # Recursion
-                files_index_recursion = create_files_index(item, current_path / name)
-                files_index.merge_files_index(files_index_recursion)
-            elif item['type'] == 'file':
-                files_index.add_item(item, current_path / name)
-            else:
-                pass  # skip other types (error)
+    for relative_path_str, data in flat_structure.items():
+        relative_path = Path(relative_path_str)
+        files_index.add_item(data, relative_path)
     return files_index
 
 
@@ -199,10 +191,10 @@ def main():
     old_yaml = Path(arguments['--old'])
     new_yaml = Path(arguments['--new'])
     if not old_yaml.is_file():
-        print("The specified YAML files do not exist:" + str(old_yaml))
+        print("The specified YAML file does not exist: " + str(old_yaml))
         exit(10)
     elif not new_yaml.is_file():
-        print("The specified YAML files do not exist:" + str(new_yaml))
+        print("The specified YAML file does not exist: " + str(new_yaml))
         exit(11)
 
     initial_data = load_yaml(old_yaml)
@@ -211,12 +203,13 @@ def main():
     if initial_data is None or new_data is None:
         print("Error loading YAML files.")
     else:
-        # Create special file index
-        print('Parse old')
-        initial_file_list = create_files_index({'type': 'dir', 'contents': initial_data})
-        print('Parse new')
-        new_file_list = create_files_index({'type': 'dir', 'contents': new_data})
-        # Search diff
+        # Create file indexes
+        print('Parsing old data...')
+        initial_file_list = create_files_index(initial_data)
+        print('Parsing new data...')
+        new_file_list = create_files_index(new_data)
+
+        # Search for differences
         changed_files, moved_files, deleted_files, new_files = search_changes_in_fs_struct(initial_file_list, new_file_list)
         print_result(changed_files, moved_files, deleted_files, new_files)
 
