@@ -11,7 +11,13 @@ Options:
   --stdin       Read YAML from standard input.
   --stdout      Write output to standard output.
 
-See: DiskDir and DiskDir Extended plugins for Double Commander (if you're a fan of opensource) or Total Commander.
+See: "DiskDirW" and "DiskDirExtended_64bit" plugins for 
+Double Commander (if you're a fan of opensource) or Total Commander.
+
+DiskDirW (2022.01.15 Version 1.2.4 released)
+URL: https://totalcmd.net/plugring/diskdirw.html  
+URL: https://wincmd.ru/plugring/diskdirw.html
+
 """
 
 import yaml
@@ -19,6 +25,7 @@ from pathlib import Path
 from datetime import datetime
 import sys
 from docopt import docopt
+from fss_utils import load_yaml
 
 def convert_iso8601_to_custom_format(iso_time):
     dt = datetime.strptime(iso_time, '%Y-%m-%d_%H:%M:%SZ')
@@ -52,10 +59,6 @@ def format_output(flat_structure):
 
     return output_lines, total_files, total_size
 
-def load_yaml(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
-
 def save_to_file(output_lines, output_file):
     with open(output_file, 'w', encoding='utf-8') as f:
         for line in output_lines:
@@ -69,7 +72,12 @@ def main(yaml_file=None, output_file=None, use_stdin=False, use_stdout=False):
     if use_stdin:
         flat_structure = yaml.safe_load(sys.stdin)
     else:
-        flat_structure = load_yaml(yaml_file)
+        # Load YAML data using load_yaml from fss_utils
+        flat_structure = load_yaml(Path(yaml_file))
+
+    if flat_structure is None:
+        print(f"ERROR: Failed to load YAML data from {yaml_file}")
+        return
 
     output_lines, total_files, total_size = format_output(flat_structure)
 
