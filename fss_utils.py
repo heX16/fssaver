@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 import os
 import stat
 import contextlib
+import platform
+import time
 
 
 def is_wnd() -> bool:
@@ -83,7 +85,7 @@ def open_with_attribute_handling(filename: str | Path, mode='w'):
 
 def dict_del_item(d: dict, item):
     if item in d:
-        del r[item]
+        del d[item]
 
 def get_file_content(file_name, encoding='utf-8'):
     try:
