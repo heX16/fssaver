@@ -25,6 +25,7 @@ from fss_utils import *
 import typing
 from pathlib import Path
 from docopt import docopt
+from concurrent.futures import ThreadPoolExecutor
 
 
 class FilesIndex:
@@ -52,6 +53,11 @@ class FilesIndex:
 
     @classmethod
     def make_keys(cls, data: dict, current_path: Path):
+        """
+        Make keys tuple for each index.
+        """
+
+        # make keys tuple
         current_name = current_path.name
         keys = [
             (current_name, data['type'], data['size'], data['md5'], data['ctime'], data['mtime']),
@@ -62,16 +68,19 @@ class FilesIndex:
         ]
 
         # keys validation
-        for i, key in enumerate(keys):
+        for i, key_tuple in enumerate(keys):
             if i == 0 and data['size'] > 0:
                 # try to save this key even if it doesn't contain some data (usually all data is present)
                 continue
 
-            for d in key:
+            # check "key tuple" for invalid data
+            for d in key_tuple:
                 if d == '' or d == -1 or d is None:
                     break  # invalid data in key - delete this key
             else:
                 continue  # all data present in key - continue
+
+            # delete this key
             keys[i] = None
 
         if data['size'] == 0:
@@ -83,7 +92,7 @@ class FilesIndex:
         FilesIndex.normalize_data(data, current_path)
         keys = FilesIndex.make_keys(data, current_path)
         for i, k in enumerate(self.indexes):
-            if k is None:
+            if keys[i] is None:
                 continue
             if keys[i] in self.indexes[i]:
                 # duplication detected
@@ -197,8 +206,21 @@ def main():
         print("The specified YAML file does not exist: " + str(new_yaml))
         exit(11)
 
-    initial_data = load_yaml(old_yaml)
-    new_data = load_yaml(new_yaml)
+    print('Data loading...')
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        # Load data from files, simple code:
+        # initial_data = load_yaml(old_yaml)
+        # new_data = load_yaml(new_yaml)
+
+        # Run loading in parallel:
+        future_initial = executor.submit(load_yaml, old_yaml)
+        future_new = executor.submit(load_yaml, new_yaml)
+
+        # Get results:
+        initial_data = future_initial.result()
+        new_data = future_new.result()
+    print('Data loaded')
 
     if initial_data is None or new_data is None:
         print("Error loading YAML files.")
@@ -211,7 +233,7 @@ def main():
 
         # Search for differences
         changed_files, moved_files, deleted_files, new_files = search_changes_in_fs_struct(initial_file_list, new_file_list)
-        print_result(changed_files, moved_files, deleted_files, new_files)
+        save_result_and_print_info(changed_files, moved_files, deleted_files, new_files)
 
 
 if __name__ == "__main__":

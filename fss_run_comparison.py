@@ -12,7 +12,7 @@ current_directory = Path.cwd()
 # Get the directory where this script is located
 script_directory = Path(__file__).resolve().parent
 # Path to the executable file fs_struct_comparison.py
-executable_path = script_directory / 'fs_struct_comparison.py'
+executable_path = script_directory / 'fss_compare.py'
 
 if not executable_path.exists():
     print("Error: Executable file fs_struct_comparison.py not found in the script directory.")

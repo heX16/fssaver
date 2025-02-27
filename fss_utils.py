@@ -150,7 +150,7 @@ def save_to_csv(file_path: Path, data):
         csv_writer.writerows(data)
 
 
-def print_file_list(header: str, files_list: list[tuple], csv_filename=None):
+def save_file_list_and_print_info(header: str, files_list: list[tuple], csv_filename=None):
     """
     Print a list of files and optionally save it to a CSV file.
     """
@@ -168,11 +168,11 @@ def print_file_list(header: str, files_list: list[tuple], csv_filename=None):
         print(f"{header} saved to {csv_filename}")
 
 
-def print_result(changed_files, moved_files, deleted_files, new_files):
+def save_result_and_print_info(changed_files, moved_files, deleted_files, new_files):
     """
     Print and optionally save the results of changed, moved, and deleted files.
     """
-    print_file_list("Changed files", changed_files, "changed.csv")
-    print_file_list("Moved files", moved_files, "moved.csv")
-    print_file_list("Deleted files", deleted_files, "deleted.csv")
-    print_file_list("New files", new_files, "new.csv")
+    save_file_list_and_print_info("Changed files", changed_files, "changed.csv")
+    save_file_list_and_print_info("Moved files", moved_files, "moved.csv")
+    save_file_list_and_print_info("Deleted files", deleted_files, "deleted.csv")
+    save_file_list_and_print_info("New files", new_files, "new.csv")
