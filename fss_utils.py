@@ -168,11 +168,21 @@ def save_file_list_and_print_info(header: str, files_list: list[tuple], csv_file
         print(f"{header} saved to {csv_filename}")
 
 
-def save_result_and_print_info(changed_files, moved_files, deleted_files, new_files):
+def save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files=None):
     """
-    Print and optionally save the results of changed, moved, and deleted files.
+    Print and optionally save the results of changed, moved, deleted, new files and duplicates.
+
+    Args:
+        changed_files: List of changed files
+        moved_files: List of moved files
+        deleted_files: List of deleted files
+        new_files: List of new files
+        duplicate_files: List of duplicate files (optional)
     """
     save_file_list_and_print_info("Changed files", changed_files, "changed.csv")
     save_file_list_and_print_info("Moved files", moved_files, "moved.csv")
     save_file_list_and_print_info("Deleted files", deleted_files, "deleted.csv")
     save_file_list_and_print_info("New files", new_files, "new.csv")
+
+    if duplicate_files is not None:
+        save_file_list_and_print_info("Duplicate files", duplicate_files, "duplicates.csv")
