@@ -25,6 +25,7 @@ from docopt import docopt
 from concurrent.futures import ThreadPoolExecutor
 import yaml
 import time
+import traceback
 
 
 class FilesIndex:
@@ -366,13 +367,13 @@ def process_yaml_stream(yaml_file: Path, file_index: FilesIndex, encoding='utf-8
         with open(yaml_file, 'r', encoding=encoding) as f:
             loader = yaml.CLoader(f)
             try:
-                # Пропускаем начало потока и документа
+                # Skip the beginning of the stream and document
                 while not isinstance(loader.get_event(), yaml.MappingStartEvent):
-                    pass  # Пропускаем все события до начала корневого словаря
+                    pass  # Skip all events until the start of the root dictionary
 
-                # Обрабатываем записи
+                # Process records
                 while True:
-                    # Получаем ключ
+                    # Get the key
                     event = loader.get_event()
                     if isinstance(event, yaml.MappingEndEvent):
                         break
@@ -380,12 +381,12 @@ def process_yaml_stream(yaml_file: Path, file_index: FilesIndex, encoding='utf-8
                         raise ValueError(f"Expected key (ScalarEvent), got {type(event)}")
                     key = event.value
 
-                    # Ожидаем начало вложенного словаря
+                    # Wait for the start of the nested dictionary
                     event = loader.get_event()
                     if not isinstance(event, yaml.MappingStartEvent):
                         raise ValueError(f"Expected mapping start, got {type(event)}")
 
-                    # Получаем данные файла как словарь
+                    # Get file data as a dictionary
                     data = {}
                     while True:
                         event = loader.get_event()
@@ -401,7 +402,7 @@ def process_yaml_stream(yaml_file: Path, file_index: FilesIndex, encoding='utf-8
                             raise ValueError(f"Expected value (ScalarEvent) for field {field}, got {type(event)}")
                         value = event.value
 
-                        # Конвертируем размер в int
+                        # Convert size to int
                         if field == 'size':
                             try:
                                 value = int(value)
@@ -410,11 +411,11 @@ def process_yaml_stream(yaml_file: Path, file_index: FilesIndex, encoding='utf-8
 
                         data[field] = value
 
-                    # Добавляем в индекс
+                    # Add to index
                     file_index.add_item(data, Path(key))
                     items_processed += 1
 
-                    # Показываем прогресс каждые 5 секунд
+                    # Show progress every 5 seconds
                     current_time = time.time()
                     if current_time - last_print_time >= 5:
                         position = f.tell()
@@ -424,12 +425,12 @@ def process_yaml_stream(yaml_file: Path, file_index: FilesIndex, encoding='utf-8
             finally:
                 loader.dispose()
 
-        # Выводим финальный прогресс
+        # Output final progress
         print(f'Completed {yaml_file.name}: 100% ({items_processed} items)')
         return True
     except Exception as e:
         print(f'ERROR processing {yaml_file.name}: {str(e)}')
-        traceback.print_exc()  # Добавляем трассировку для более подробной информации об ошибке
+        traceback.print_exc()  # Add traceback for more detailed error information
         return False
 
 
