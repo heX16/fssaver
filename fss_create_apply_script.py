@@ -2,7 +2,7 @@
 Create Apply Script
 
 Usage:
-  fss_create_apply_script.py [--input=<csv>] [--output=<script>] [--wnd | --linux]
+  fss_create_apply_script.py [--input=<csv>] [--output=<script>] [--wnd | --linux] [--progress]
   fss_create_apply_script.py -h | --help
 
 Options:
@@ -11,6 +11,7 @@ Options:
   --output=<script>    Output script file [default: apply_changed.sh]
   --wnd                Create Windows batch script regardless of current OS
   --linux              Create Linux shell script regardless of current OS
+  --progress           Show progress percentage during execution
 """
 
 import csv
@@ -19,13 +20,14 @@ from docopt import docopt
 from fss_utils import is_wnd
 
 
-def generate_script_content(csv_file: Path, is_windows: bool) -> str:
+def generate_script_content(csv_file: Path, is_windows: bool, show_progress: bool = False) -> str:
     """
     Generates script content based on CSV data and target OS.
 
     Args:
         csv_file: Path to the CSV file
         is_windows: Whether to create Windows commands
+        show_progress: Whether to show progress percentage during execution
 
     Returns:
         Generated script content as string
@@ -107,8 +109,25 @@ def generate_script_content(csv_file: Path, is_windows: bool) -> str:
             else:
                 script_content += "\n# Move files\n"
 
-            script_content += '\n'.join(move_commands)
-            script_content += '\n'
+            # Add progress reporting
+            total_moves = len(move_commands)
+            for i, move_cmd in enumerate(move_commands):
+                script_content += move_cmd + '\n'
+
+                # Show progress every 100 files if enabled
+                if show_progress and (i + 1) % 100 == 0 and i < total_moves - 1:
+                    percent_done = int((i + 1) / total_moves * 100)
+                    if is_windows:
+                        script_content += f'echo Progress: {percent_done}%% ({i + 1} of {total_moves})\n'
+                    else:
+                        script_content += f'echo "Progress: {percent_done}% ({i + 1} of {total_moves})"\n'
+
+            # Show 100% completion at the end if progress reporting is enabled
+            if show_progress:
+                if is_windows:
+                    script_content += f'echo Progress: 100%% ({total_moves} of {total_moves})\n'
+                else:
+                    script_content += f'echo "Progress: 100% ({total_moves} of {total_moves})"\n'
 
         return script_content
 
@@ -144,6 +163,7 @@ def main():
     arguments = docopt(__doc__)
     input_file = Path(arguments['--input'])
     output_file = Path(arguments['--output'])
+    show_progress = arguments.get('--progress', False)
 
     # Determine target OS format (with manual override from arguments)
     force_windows = arguments.get('--wnd', False)
@@ -166,7 +186,7 @@ def main():
         return
 
     # Generate and save the script
-    script_content = generate_script_content(input_file, is_windows)
+    script_content = generate_script_content(input_file, is_windows, show_progress)
     if script_content:
         save_script(script_content, output_file, is_windows)
 
