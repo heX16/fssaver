@@ -7,7 +7,7 @@ Usage:
 
 Options:
   -h --help            Show this help message and exit.
-  --input=<csv>        Input CSV file [default: changed.csv]
+  --input=<csv>        Input CSV file [default: moved.csv]
   --output=<script>    Output script file [default: apply_changed.sh]
   --wnd                Create Windows batch script regardless of current OS
   --linux              Create Linux shell script regardless of current OS
@@ -17,36 +17,6 @@ import csv
 from pathlib import Path
 from docopt import docopt
 from fss_utils import is_wnd
-
-
-def create_shell_command(src: str, dst: str, operation: str, is_windows: bool) -> str:
-    """
-    Creates shell command for the specified OS type.
-
-    Args:
-        src: Source file path
-        dst: Destination file path
-        operation: Operation type (move, rename, etc.)
-        is_windows: Whether to create Windows commands
-
-    Returns:
-        Command string for the specified OS
-    """
-    # Convert paths to proper format
-    src_path = Path(src)
-    dst_path = Path(dst)
-
-    # Ensure the destination directory exists
-    dst_dir = dst_path.parent
-
-    if is_windows:
-        mkdir_cmd = f'mkdir "{dst_dir}" 2>nul'
-        move_cmd = f'move "{src_path}" "{dst_path}"'
-    else:
-        mkdir_cmd = f'mkdir -p "{dst_dir}"'
-        move_cmd = f'mv "{src_path}" "{dst_path}"'
-
-    return f'{mkdir_cmd}\n{move_cmd}'
 
 
 def generate_script_content(csv_file: Path, is_windows: bool) -> str:
@@ -66,6 +36,10 @@ def generate_script_content(csv_file: Path, is_windows: bool) -> str:
     else:
         script_content = '#!/bin/sh\n'
 
+    # Lists to store directories and move commands
+    directories = set()
+    move_commands = []
+
     try:
         with open(csv_file, 'r', newline='', encoding='utf-8') as f:
             reader = csv.reader(f, delimiter=';')
@@ -83,8 +57,58 @@ def generate_script_content(csv_file: Path, is_windows: bool) -> str:
                     print(f"Warning: Row {i} skipped, empty source or destination: {row}")
                     continue
 
-                command = create_shell_command(src, dst, operation, is_windows)
-                script_content += f'{command}\n'
+                # Extract destination directory
+                dst_path = Path(dst)
+                dst_dir = dst_path.parent
+                if dst_dir and str(dst_dir) != '.':
+                    # Store the directory with proper path separator
+                    dir_str = str(dst_dir)
+                    if is_windows:
+                        # Ensure Windows path format
+                        dir_str = dir_str.replace('/', '\\')
+                    else:
+                        # Ensure Unix path format
+                        dir_str = dir_str.replace('\\', '/')
+                    directories.add(dir_str)
+
+                # Create move command with proper path format
+                src_str = str(src)
+                dst_str = str(dst)
+                if is_windows:
+                    # Ensure Windows path format for display
+                    src_str = src_str.replace('/', '\\')
+                    dst_str = dst_str.replace('/', '\\')
+                    move_cmd = f'move "{src_str}" "{dst_str}"'
+                else:
+                    # Ensure Unix path format for display
+                    src_str = src_str.replace('\\', '/')
+                    dst_str = dst_str.replace('\\', '/')
+                    move_cmd = f'mv "{src_str}" "{dst_str}"'
+
+                move_commands.append(move_cmd)
+
+        # Add directory creation commands
+        if directories:
+            if is_windows:
+                script_content += "\nREM Create directories\n"
+            else:
+                script_content += "\n# Create directories\n"
+
+            for directory in sorted(directories):
+                if is_windows:
+                    script_content += f'mkdir "{directory}" 2>nul\n'
+                else:
+                    script_content += f'mkdir -p "{directory}"\n'
+
+        # Add move commands
+        if move_commands:
+            if is_windows:
+                script_content += "\nREM Move files\n"
+            else:
+                script_content += "\n# Move files\n"
+
+            script_content += '\n'.join(move_commands)
+            script_content += '\n'
 
         return script_content
 
@@ -118,8 +142,8 @@ def save_script(content: str, script_file: Path, is_windows: bool):
 
 def main():
     arguments = docopt(__doc__)
-    input_file = Path(arguments['--input'] or 'moved.csv')
-    output_file = Path(arguments['--output'] or 'apply_moved.sh')
+    input_file = Path(arguments['--input'])
+    output_file = Path(arguments['--output'])
 
     # Determine target OS format (with manual override from arguments)
     force_windows = arguments.get('--wnd', False)
