@@ -19,6 +19,82 @@ from pathlib import Path
 from docopt import docopt
 from fss_utils import is_wnd
 
+# OS-specific strings template dictionary
+GEN_STRINGS = {
+    # Script header
+    'script_header': '',  # Script header line
+
+    # Directory operations
+    'dir_comment': '',    # Comment for directory creation section
+    'mkdir_cmd': '',      # Directory creation command template
+
+    # File operations
+    'file_comment': '',   # Comment for file operations section
+    'move_cmd': '',       # Move file command template
+
+    # Progress reporting
+    'progress_fmt': '',   # Progress report format
+    'final_progress_fmt': '',  # Final progress report format
+
+    # Path separators
+    'path_sep': '',       # Path separator character
+}
+
+
+def initialize_gen_strings(is_windows: bool) -> dict:
+    """
+    Initialize the OS-specific strings dictionary based on the target OS.
+
+    Args:
+        is_windows: Whether to create Windows commands
+
+    Returns:
+        Dictionary with OS-specific string templates
+    """
+    strings = GEN_STRINGS.copy()
+
+    if is_windows:
+        strings.update({
+            'script_header': '@echo off',
+            'dir_comment': 'REM Create directories',
+            'mkdir_cmd': 'mkdir "{0}" 2>nul',
+            'file_comment': 'REM Move files',
+            'move_cmd': 'move "{0}" "{1}"',
+            'progress_fmt': 'echo Progress: {0}%% ({1} of {2})',
+            'final_progress_fmt': 'echo Progress: 100%% ({0} of {0})',
+            'path_sep': '\\',
+        })
+    else:
+        strings.update({
+            'script_header': '#!/bin/sh',
+            'dir_comment': '# Create directories',
+            'mkdir_cmd': 'mkdir -p "{0}"',
+            'file_comment': '# Move files',
+            'move_cmd': 'mv "{0}" "{1}"',
+            'progress_fmt': 'echo "Progress: {0}% ({1} of {2})"',
+            'final_progress_fmt': 'echo "Progress: 100% ({0} of {0})"',
+            'path_sep': '/',
+        })
+
+    return strings
+
+
+def normalize_path(path_str: str, gen_strings: dict) -> str:
+    """
+    Normalize path separators for the target OS.
+
+    Args:
+        path_str: Path string to normalize
+        os_strings: Dictionary with OS-specific strings
+
+    Returns:
+        Normalized path string
+    """
+    if gen_strings['path_sep'] == '\\':
+        return path_str.replace('/', '\\')
+    else:
+        return path_str.replace('\\', '/')
+
 
 def generate_script_content(csv_file: Path, is_windows: bool, show_progress: bool = False) -> str:
     """
@@ -32,11 +108,11 @@ def generate_script_content(csv_file: Path, is_windows: bool, show_progress: boo
     Returns:
         Generated script content as string
     """
+    # Initialize OS-specific strings
+    gen_strs = initialize_gen_strings(is_windows)
+
     # Start with appropriate header
-    if is_windows:
-        script_content = '@echo off\n'
-    else:
-        script_content = '#!/bin/sh\n'
+    script_content = gen_strs['script_header'] + '\n'
 
     # Lists to store directories and move commands
     directories = set()
@@ -64,50 +140,24 @@ def generate_script_content(csv_file: Path, is_windows: bool, show_progress: boo
                 dst_dir = dst_path.parent
                 if dst_dir and str(dst_dir) != '.':
                     # Store the directory with proper path separator
-                    dir_str = str(dst_dir)
-                    if is_windows:
-                        # Ensure Windows path format
-                        dir_str = dir_str.replace('/', '\\')
-                    else:
-                        # Ensure Unix path format
-                        dir_str = dir_str.replace('\\', '/')
+                    dir_str = normalize_path(str(dst_dir), gen_strs)
                     directories.add(dir_str)
 
                 # Create move command with proper path format
-                src_str = str(src)
-                dst_str = str(dst)
-                if is_windows:
-                    # Ensure Windows path format for display
-                    src_str = src_str.replace('/', '\\')
-                    dst_str = dst_str.replace('/', '\\')
-                    move_cmd = f'move "{src_str}" "{dst_str}"'
-                else:
-                    # Ensure Unix path format for display
-                    src_str = src_str.replace('\\', '/')
-                    dst_str = dst_str.replace('\\', '/')
-                    move_cmd = f'mv "{src_str}" "{dst_str}"'
-
+                src_str = normalize_path(str(src), gen_strs)
+                dst_str = normalize_path(str(dst), gen_strs)
+                move_cmd = gen_strs['move_cmd'].format(src_str, dst_str)
                 move_commands.append(move_cmd)
 
         # Add directory creation commands
         if directories:
-            if is_windows:
-                script_content += "\nREM Create directories\n"
-            else:
-                script_content += "\n# Create directories\n"
-
+            script_content += f"\n{gen_strs['dir_comment']}\n"
             for directory in sorted(directories):
-                if is_windows:
-                    script_content += f'mkdir "{directory}" 2>nul\n'
-                else:
-                    script_content += f'mkdir -p "{directory}"\n'
+                script_content += gen_strs['mkdir_cmd'].format(directory) + '\n'
 
         # Add move commands
         if move_commands:
-            if is_windows:
-                script_content += "\nREM Move files\n"
-            else:
-                script_content += "\n# Move files\n"
+            script_content += f"\n{gen_strs['file_comment']}\n"
 
             # Add progress reporting
             total_moves = len(move_commands)
@@ -117,17 +167,15 @@ def generate_script_content(csv_file: Path, is_windows: bool, show_progress: boo
                 # Show progress every 100 files if enabled
                 if show_progress and (i + 1) % 100 == 0 and i < total_moves - 1:
                     percent_done = int((i + 1) / total_moves * 100)
-                    if is_windows:
-                        script_content += f'echo Progress: {percent_done}%% ({i + 1} of {total_moves})\n'
-                    else:
-                        script_content += f'echo "Progress: {percent_done}% ({i + 1} of {total_moves})"\n'
+                    progress_line = gen_strs['progress_fmt'].format(
+                        percent_done, i + 1, total_moves
+                    )
+                    script_content += progress_line + '\n'
 
             # Show 100% completion at the end if progress reporting is enabled
             if show_progress:
-                if is_windows:
-                    script_content += f'echo Progress: 100%% ({total_moves} of {total_moves})\n'
-                else:
-                    script_content += f'echo "Progress: 100% ({total_moves} of {total_moves})"\n'
+                final_progress = gen_strs['final_progress_fmt'].format(total_moves)
+                script_content += final_progress + '\n'
 
         return script_content
 
