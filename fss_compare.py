@@ -168,10 +168,6 @@ class FilesIndex:
                 description = self.KEY_TYPE_DESCRIPTIONS.get(i, f"unknown type {i}")
                 size_info = f"{data.get('size', -1)} bytes" if data.get('size', -1) > 0 else "unknown size"
 
-                print(f"Duplicate detected ({description}, {size_info}):")
-                print(f"  Source: {current_path}")
-                print(f"  Duplicate of: {existing_file['path']}")
-
                 continue
             else:
                 self.indexes[i][keys[i]] = data
@@ -370,36 +366,42 @@ def process_yaml_stream(yaml_file: Path, file_index: FilesIndex, encoding='utf-8
         with open(yaml_file, 'r', encoding=encoding) as f:
             loader = yaml.CLoader(f)
             try:
-                # Skip stream start
-                loader.get_token()
-                # Skip document start
-                loader.get_token()
-                # Skip the root mapping start
-                loader.get_token()
+                # Пропускаем начало потока и документа
+                while not isinstance(loader.get_event(), yaml.MappingStartEvent):
+                    pass  # Пропускаем все события до начала корневого словаря
 
-                # Process entries
+                # Обрабатываем записи
                 while True:
-                    # Get key
-                    token = loader.get_token()
-                    if isinstance(token, yaml.MappingEndEvent):
+                    # Получаем ключ
+                    event = loader.get_event()
+                    if isinstance(event, yaml.MappingEndEvent):
                         break
-                    key = token.value
+                    if not isinstance(event, yaml.ScalarEvent):
+                        raise ValueError(f"Expected key (ScalarEvent), got {type(event)}")
+                    key = event.value
 
-                    # Skip value start
-                    loader.get_token()  # MappingStartEvent
+                    # Ожидаем начало вложенного словаря
+                    event = loader.get_event()
+                    if not isinstance(event, yaml.MappingStartEvent):
+                        raise ValueError(f"Expected mapping start, got {type(event)}")
 
-                    # Get the file data as a dict
+                    # Получаем данные файла как словарь
                     data = {}
                     while True:
-                        token = loader.get_token()
-                        if isinstance(token, yaml.MappingEndEvent):
+                        event = loader.get_event()
+                        if isinstance(event, yaml.MappingEndEvent):
                             break
 
-                        # Get key-value pair
-                        field = token.value
-                        value = loader.get_token().value
+                        if not isinstance(event, yaml.ScalarEvent):
+                            raise ValueError(f"Expected field name (ScalarEvent), got {type(event)}")
+                        field = event.value
 
-                        # Convert size to int
+                        event = loader.get_event()
+                        if not isinstance(event, yaml.ScalarEvent):
+                            raise ValueError(f"Expected value (ScalarEvent) for field {field}, got {type(event)}")
+                        value = event.value
+
+                        # Конвертируем размер в int
                         if field == 'size':
                             try:
                                 value = int(value)
@@ -408,26 +410,26 @@ def process_yaml_stream(yaml_file: Path, file_index: FilesIndex, encoding='utf-8
 
                         data[field] = value
 
-                    # Add to index
+                    # Добавляем в индекс
                     file_index.add_item(data, Path(key))
                     items_processed += 1
 
-                    # Print progress every 5 seconds
+                    # Показываем прогресс каждые 5 секунд
                     current_time = time.time()
                     if current_time - last_print_time >= 5:
-                        progress = (f.tell() / total_size) * 100
+                        position = f.tell()
+                        progress = (position / total_size) * 100 if total_size > 0 else 0
                         print(f'Processing {yaml_file.name}: {progress:.1f}% ({items_processed} items)')
                         last_print_time = current_time
-
             finally:
                 loader.dispose()
 
-        # Print final progress
+        # Выводим финальный прогресс
         print(f'Completed {yaml_file.name}: 100% ({items_processed} items)')
         return True
-
     except Exception as e:
         print(f'ERROR processing {yaml_file.name}: {str(e)}')
+        traceback.print_exc()  # Добавляем трассировку для более подробной информации об ошибке
         return False
 
 
