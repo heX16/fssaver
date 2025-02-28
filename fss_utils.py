@@ -8,6 +8,8 @@ import stat
 import contextlib
 import platform
 import time
+import typing
+import traceback
 
 
 def is_wnd() -> bool:
@@ -120,6 +122,93 @@ def time_trim_ms(t: datetime or float or int):
     elif type(t) == datetime:
         return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second)
     return t
+
+
+
+def load_yaml_fss_file_stream(yaml_file: Path, process_item_func: typing.Callable[[dict, Path], None], encoding='utf-8'):
+    """
+    Process YAML file in a streaming fashion, applying custom processing function to each item.
+
+    Args:
+        yaml_file: Path to YAML file
+        process_item_func: Function that processes each item (data, path)
+        encoding: File encoding
+    """
+    try:
+        total_size = yaml_file.stat().st_size
+        items_processed = 0
+        last_print_time = time.time()
+        print(f'Processing {yaml_file.name}, size: {total_size} bytes...')
+
+        with open(yaml_file, 'r', encoding=encoding) as f:
+            loader = yaml.CLoader(f)
+            try:
+                # Skip the beginning of the stream and document
+                while not isinstance(loader.get_event(), yaml.MappingStartEvent):
+                    pass  # Skip all events until the start of the root dictionary
+
+                # Process records
+                while True:
+                    # Get the key
+                    event = loader.get_event()
+                    if isinstance(event, yaml.MappingEndEvent):
+                        break
+                    if not isinstance(event, yaml.ScalarEvent):
+                        raise ValueError(f"Expected key (ScalarEvent), got {type(event)}")
+                    key = event.value
+
+                    # Wait for the start of the nested dictionary
+                    event = loader.get_event()
+                    if not isinstance(event, yaml.MappingStartEvent):
+                        raise ValueError(f"Expected mapping start, got {type(event)}")
+
+                    # Get file data as a dictionary
+                    data = {}
+                    while True:
+                        event = loader.get_event()
+                        if isinstance(event, yaml.MappingEndEvent):
+                            break
+
+                        if not isinstance(event, yaml.ScalarEvent):
+                            raise ValueError(f"Expected field name (ScalarEvent), got {type(event)}")
+                        field = event.value
+
+                        event = loader.get_event()
+                        if not isinstance(event, yaml.ScalarEvent):
+                            raise ValueError(f"Expected value (ScalarEvent) for field {field}, got {type(event)}")
+                        value = event.value
+
+                        # Convert size to int
+                        if field == 'size':
+                            try:
+                                value = int(value)
+                            except (ValueError, TypeError):
+                                value = -1
+
+                        data[field] = value
+
+                    # Process item using provided function
+                    process_item_func(data, Path(key))
+                    items_processed += 1
+
+                    # Show progress every 5 seconds
+                    current_time = time.time()
+                    if current_time - last_print_time >= 5:
+                        position = f.tell()
+                        progress = (position / total_size) * 100 if total_size > 0 else 0
+                        print(f'Processing {yaml_file.name}: {progress:.1f}% ({items_processed} items)')
+                        last_print_time = current_time
+            finally:
+                loader.dispose()
+
+        # Output final progress
+        print(f'Completed {yaml_file.name}: 100% ({items_processed} items)')
+        return True
+    except Exception as e:
+        print(f'ERROR processing {yaml_file.name}: {str(e)}')
+        traceback.print_exc()
+        return False
+
 
 def load_yaml(input_file: Path, retries: int = 0, retries_pause: int = 0, encoding='utf-8', return_on_fail=None):
     for attempt in range(retries + 1):

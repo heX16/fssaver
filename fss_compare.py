@@ -18,14 +18,11 @@ Options:
 # TODO: use `time_trim_ms` in normalize
 
 
-from fss_utils import *
+import fss_utils
 import typing
 from pathlib import Path
 from docopt import docopt
 from concurrent.futures import ThreadPoolExecutor
-import yaml
-import time
-import traceback
 
 
 class FilesIndex:
@@ -349,91 +346,6 @@ def search_changes_in_fs_struct(initial_list: FilesIndex, new_list: FilesIndex):
     return changed_files, moved_files, deleted_files, new_files, duplicate_files
 
 
-def process_yaml_stream(yaml_file: Path, file_index: FilesIndex, encoding='utf-8'):
-    """
-    Process YAML file in a streaming fashion, adding items to FilesIndex.
-
-    Args:
-        yaml_file: Path to YAML file
-        file_index: FilesIndex object to populate
-        encoding: File encoding
-    """
-    try:
-        total_size = yaml_file.stat().st_size
-        items_processed = 0
-        last_print_time = time.time()
-        print(f'Processing {yaml_file.name}, size: {total_size} bytes...')
-
-        with open(yaml_file, 'r', encoding=encoding) as f:
-            loader = yaml.CLoader(f)
-            try:
-                # Skip the beginning of the stream and document
-                while not isinstance(loader.get_event(), yaml.MappingStartEvent):
-                    pass  # Skip all events until the start of the root dictionary
-
-                # Process records
-                while True:
-                    # Get the key
-                    event = loader.get_event()
-                    if isinstance(event, yaml.MappingEndEvent):
-                        break
-                    if not isinstance(event, yaml.ScalarEvent):
-                        raise ValueError(f"Expected key (ScalarEvent), got {type(event)}")
-                    key = event.value
-
-                    # Wait for the start of the nested dictionary
-                    event = loader.get_event()
-                    if not isinstance(event, yaml.MappingStartEvent):
-                        raise ValueError(f"Expected mapping start, got {type(event)}")
-
-                    # Get file data as a dictionary
-                    data = {}
-                    while True:
-                        event = loader.get_event()
-                        if isinstance(event, yaml.MappingEndEvent):
-                            break
-
-                        if not isinstance(event, yaml.ScalarEvent):
-                            raise ValueError(f"Expected field name (ScalarEvent), got {type(event)}")
-                        field = event.value
-
-                        event = loader.get_event()
-                        if not isinstance(event, yaml.ScalarEvent):
-                            raise ValueError(f"Expected value (ScalarEvent) for field {field}, got {type(event)}")
-                        value = event.value
-
-                        # Convert size to int
-                        if field == 'size':
-                            try:
-                                value = int(value)
-                            except (ValueError, TypeError):
-                                value = -1
-
-                        data[field] = value
-
-                    # Add to index
-                    file_index.add_item(data, Path(key))
-                    items_processed += 1
-
-                    # Show progress every 5 seconds
-                    current_time = time.time()
-                    if current_time - last_print_time >= 5:
-                        position = f.tell()
-                        progress = (position / total_size) * 100 if total_size > 0 else 0
-                        print(f'Processing {yaml_file.name}: {progress:.1f}% ({items_processed} items)')
-                        last_print_time = current_time
-            finally:
-                loader.dispose()
-
-        # Output final progress
-        print(f'Completed {yaml_file.name}: 100% ({items_processed} items)')
-        return True
-    except Exception as e:
-        print(f'ERROR processing {yaml_file.name}: {str(e)}')
-        traceback.print_exc()  # Add traceback for more detailed error information
-        return False
-
-
 def main():
     arguments = docopt(__doc__)
     old_yaml = Path(arguments['--old'])
@@ -454,8 +366,16 @@ def main():
 
     # Process files in parallel using ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=2) as executor:
-        future_initial = executor.submit(process_yaml_stream, old_yaml, initial_file_list)
-        future_new = executor.submit(process_yaml_stream, new_yaml, new_file_list)
+        future_initial = executor.submit(
+            fss_utils.load_yaml_fss_file_stream,
+            old_yaml,
+            initial_file_list.add_item
+        )
+        future_new = executor.submit(
+            fss_utils.load_yaml_fss_file_stream,
+            new_yaml,
+            new_file_list.add_item
+        )
 
         # Wait for both tasks to complete
         initial_success = future_initial.result()
@@ -473,7 +393,7 @@ def main():
         new_list=new_file_list
     )
 
-    save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files)
+    fss_utils.save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files)
 
 
 if __name__ == "__main__":
