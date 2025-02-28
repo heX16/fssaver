@@ -111,16 +111,17 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
     r['mtime'] = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
     return r
 
-def create_file_structure(path: Path, no_update_md5: bool = False, recursion: bool = True, retries: int = 1, retries_pause: int = 1):
-    if filter_dir(path):
-        print('HARDCODED SKIP:', str(path))
+def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion: bool = True, retries: int = 1, retries_pause: int = 1):
+    if filter_dir(dir_path):
+        print('HARDCODED SKIP:', str(dir_path))
         return
 
-    yaml_path = path / g_yaml_name
+    yaml_path = dir_path / g_yaml_name
     yaml_loaded = False
 
     # Load the existing YAML file if it exists
     if yaml_path.exists():
+        # TODO: use `fss_utils.load_yaml_fss_file_stream`
         file_structure = load_yaml(yaml_path)
         if file_structure == None:
             return
@@ -132,7 +133,7 @@ def create_file_structure(path: Path, no_update_md5: bool = False, recursion: bo
     items_to_delete = list(file_structure.keys())
 
     # Iterate files and collect information
-    for item in path.iterdir():
+    for item in dir_path.iterdir():
 
         # TODO: Use igittigitt library for ignore
         if (
@@ -176,7 +177,7 @@ def create_file_structure(path: Path, no_update_md5: bool = False, recursion: bo
     # Search directory in list (for recursion)
     for name, content in file_structure.items():
         if content['type'] == 'dir':
-            dir_path = path / name
+            dir_path = dir_path / name
             if recursion:
                 # Recursion!
                 create_file_structure(dir_path, no_update_md5=no_update_md5, recursion=recursion,
