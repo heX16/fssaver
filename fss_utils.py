@@ -144,31 +144,51 @@ def load_yaml(input_file: Path, retries: int = 0, retries_pause: int = 0, encodi
                 return return_on_fail
 
 
-def save_to_csv(file_path: Path, data):
+def save_to_csv(file_path: Path, data, headers=None):
+    """
+    Save data to a CSV file.
+
+    Args:
+        file_path: Path to the CSV file
+        data: List of rows to save
+        headers: Optional list of column headers
+    """
     with open(file_path, 'w', newline='', encoding='utf-8') as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=';')
+
+        # Write headers if provided
+        if headers:
+            csv_writer.writerow(headers)
+
         csv_writer.writerows(data)
 
 
-def save_file_list_and_print_info(header: str, files_list: list[tuple], csv_filename=None):
+def save_csv_file_list_or_print(header: str, data: list[tuple], csv_filename=None, csv_headers=None):
     """
     Print a list of files and optionally save it to a CSV file.
+
+    Args:
+        header: Header text for the list
+        files_list: List of file tuples
+        csv_filename: Optional filename to save as CSV
+        csv_headers: Optional list of column headers for the CSV
     """
-    if not files_list:
+    if not data:
         print(f"{header} not detected")
         return
 
-    list_str = [list(map(str, item)) for item in files_list]
-    print(f"{header} list:")
-    for item in list_str:
-        print(';   '.join(item))
+    data_str = [list(map(str, item)) for item in data]
+    if not csv_filename:
+        print(f"{header} list:")
+        for item in data_str:
+            print(';   '.join(item))
 
     if csv_filename:
-        save_to_csv(Path(csv_filename), list_str)
+        save_to_csv(Path(csv_filename), data_str, csv_headers)
         print(f"{header} saved to {csv_filename}")
 
 
-def save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files=None):
+def save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files):
     """
     Print and optionally save the results of changed, moved, deleted, new files and duplicates.
 
@@ -179,10 +199,17 @@ def save_result_and_print_info(changed_files, moved_files, deleted_files, new_fi
         new_files: List of new files
         duplicate_files: List of duplicate files (optional)
     """
-    save_file_list_and_print_info("Changed files", changed_files, "changed.csv")
-    save_file_list_and_print_info("Moved files", moved_files, "moved.csv")
-    save_file_list_and_print_info("Deleted files", deleted_files, "deleted.csv")
-    save_file_list_and_print_info("New files", new_files, "new.csv")
+    changed_headers = ["File Path", "Changes"]
+    save_csv_file_list_or_print("Changed files", changed_files, "changed.csv", changed_headers)
 
-    if duplicate_files is not None:
-        save_file_list_and_print_info("Duplicate files", duplicate_files, "duplicates.csv")
+    moved_headers = ["Source Path", "Destination Path", "Move Type"]
+    save_csv_file_list_or_print("Moved files", moved_files, "moved.csv", moved_headers)
+
+    deleted_headers = ["File Path"]
+    save_csv_file_list_or_print("Deleted files", deleted_files, "deleted.csv", deleted_headers)
+
+    new_headers = ["File Path"]
+    save_csv_file_list_or_print("New files", new_files, "new.csv", new_headers)
+
+    duplicate_headers = ["Source File", "Duplicate File", "Match Type", "Size", "MD5 Hash"]
+    save_csv_file_list_or_print("Duplicate files", duplicate_files, "duplicates.csv", duplicate_headers)

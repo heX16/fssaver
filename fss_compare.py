@@ -2,14 +2,13 @@
 File Structure Comparison
 
 Usage:
-  fs_structure_comparison.py --old=<old_yaml> --new=<new_yaml> [--dup]
-  fs_structure_comparison.py -h | --help
+  fss_compare.py --old=<old_yaml> --new=<new_yaml>
+  fss_compare.py -h | --help
 
 Options:
   -h --help     Show this help message and exit.
   --old=<old_yaml>  Path to the old YAML file.
   --new=<new_yaml>  Path to the new YAML file.
-  --dup         Search and report duplications
 """
 
 # TODO: add Dir rename/move detection.
@@ -27,6 +26,32 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 class FilesIndex:
+    """
+    A class for indexing and comparing file structures.
+
+    This class maintains multiple indexes of files based on different attributes,
+    which allows for efficient searching and comparison of file structures.
+    It also tracks duplicate files found during indexing.
+
+    Attributes:
+        KEY_TYPE_DESCRIPTIONS: Dictionary mapping index types to human-readable descriptions
+        full: Dictionary of files indexed by (name, type, size, md5, ctime, mtime)
+        only_hash: Dictionary of files indexed by (size, md5)
+        no_hash: Dictionary of files indexed by (name, ctime, mtime)
+        no_name: Dictionary of files indexed by (size, md5, ctime, mtime)
+        only_path: Dictionary of files indexed by (path)
+        indexes: Tuple of all index dictionaries
+        duplicates: List of duplicate files found during indexing
+    """
+
+    # Define key type descriptions for better readability
+    KEY_TYPE_DESCRIPTIONS = {
+        0: "full match (name, type, size, md5, ctime, mtime)",
+        1: "content match (size, md5)",
+        2: "metadata match (name, ctime, mtime)",
+        3: "content and time match (size, md5, ctime, mtime)",
+        4: "path match"
+    }
 
     def __init__(self):
         self.full = {}  # 0. name, type, size, md5, ctime, mtime - simple detection
@@ -43,6 +68,13 @@ class FilesIndex:
 
     @classmethod
     def normalize_data(cls, data: dict, current_path: Path):
+        """
+        Normalize file data by ensuring all required fields are present.
+
+        Args:
+            data: Dictionary containing file data
+            current_path: Path object representing the file's path
+        """
         data['path'] = current_path
         data['type'] = data.get('type', 'error')
         data['size'] = data.get('size', -1)
@@ -53,7 +85,18 @@ class FilesIndex:
     @classmethod
     def make_keys(cls, data: dict, current_path: Path):
         """
-        Make keys tuple for each index.
+        Create key tuples for each index type based on file data.
+
+        This method generates different key tuples for each index type,
+        which are used to identify and compare files. It also validates
+        the keys to ensure they don't contain invalid data.
+
+        Args:
+            data: Dictionary containing file data
+            current_path: Path object representing the file's path
+
+        Returns:
+            List of key tuples for each index type, or None for invalid keys
         """
 
         # make keys tuple
@@ -88,6 +131,18 @@ class FilesIndex:
         return keys
 
     def add_item(self, data: dict, current_path: Path):
+        """
+        Add a file to the index and detect duplicates.
+
+        This method normalizes the file data, generates keys for each index type,
+        and adds the file to the appropriate indexes. If a duplicate is found
+        (a file with the same key already exists in an index), it records the
+        duplicate information and prints a warning.
+
+        Args:
+            data: Dictionary containing file data
+            current_path: Path object representing the file's path
+        """
         FilesIndex.normalize_data(data, current_path)
         keys = FilesIndex.make_keys(data, current_path)
         for i, k in enumerate(self.indexes):
@@ -107,24 +162,48 @@ class FilesIndex:
                 }
                 self.duplicates.append(duplicate_info)
 
-                print('warn dup:\n  src:{0}\n  dst:{1}\n  key:{2}'.format(
-                    str(current_path),
-                    self.indexes[i][keys[i]]['path'],
-                    ', '.join(map(lambda x: str(x), keys[i]))
-                ))
-                # TODO: process duplication
+                # Get description for this key type
+                description = self.KEY_TYPE_DESCRIPTIONS.get(i, f"unknown type {i}")
+                size_info = f"{data.get('size', -1)} bytes" if data.get('size', -1) > 0 else "unknown size"
+
+                print(f"Duplicate detected ({description}, {size_info}):")
+                print(f"  Source: {current_path}")
+                print(f"  Duplicate of: {existing_file['path']}")
+
                 continue
             else:
                 self.indexes[i][keys[i]] = data
 
     def merge_files_index(self, files_index):
+        """
+        Merge another FilesIndex into this one.
+
+        This method merges all indexes and the duplicates list from another
+        FilesIndex object into this one.
+
+        Args:
+            files_index: Another FilesIndex object to merge into this one
+        """
         for i, k in enumerate(self.indexes):
             self.indexes[i].update(files_index.indexes[i])
         # Merge duplicates lists
         self.duplicates.extend(files_index.duplicates)
 
 
-def create_files_index(flat_structure: dict):
+def create_files_index(flat_structure: dict) -> FilesIndex:
+    """
+    Create a FilesIndex from a flat structure dictionary.
+
+    This function creates a new FilesIndex object and populates it with
+    file data from a flat structure dictionary, where keys are file paths
+    and values are dictionaries containing file metadata.
+
+    Args:
+        flat_structure: Dictionary mapping file paths to file metadata
+
+    Returns:
+        A populated FilesIndex object
+    """
     files_index = FilesIndex()
     for relative_path_str, data in flat_structure.items():
         relative_path = Path(relative_path_str)
@@ -132,50 +211,74 @@ def create_files_index(flat_structure: dict):
     return files_index
 
 
-def search_changes_in_fs_struct(initial_list, new_list):
+def process_duplicates(file_index: FilesIndex, is_old_index: bool) -> list[tuple[str, str, str, str, str]]:
+    """
+    Process duplicates from a file index and format them for output.
+
+    This function extracts duplicate file information from a FilesIndex object
+    and formats it for display and CSV output. It adds a prefix to indicate
+    whether the duplicate was found in the old or new file structure.
+
+    Args:
+        file_index: The FilesIndex containing duplicates information
+        is_old_index: Whether this is the old (initial) index or the new index
+
+    Returns:
+        List of formatted duplicate entries as tuples:
+        (source_file, duplicate_file, match_type_description, size_info, md5_hash)
+    """
+    result = []
+
+    prefix = "old" if is_old_index else "new"
+
+    for dup in file_index.duplicates:
+        key_type = dup['key_type']
+        description = FilesIndex.KEY_TYPE_DESCRIPTIONS.get(key_type, f"unknown type {key_type}")
+        size_info = f"{dup['size']} bytes" if dup['size'] > 0 else "unknown size"
+        md5_info = dup['md5'] if dup['md5'] else "no hash"
+
+        result.append((
+            dup['source'],
+            dup['duplicate'],
+            f"{prefix}: {description}",
+            size_info,
+            md5_info
+        ))
+
+    return result
+
+
+def search_changes_in_fs_struct(initial_list: FilesIndex, new_list: FilesIndex):
+    """
+    Search for changes between two file structure indexes.
+
+    This function compares two FilesIndex objects to identify:
+    - Changed files (files that exist in both structures but have different content)
+    - Moved files (files that have been moved or renamed)
+    - Deleted files (files that exist in the initial structure but not in the new one)
+    - New files (files that exist in the new structure but not in the initial one)
+    - Duplicate files (files that have duplicates within the same structure)
+
+    Args:
+        initial_list: The initial (old) file index
+        new_list: The new file index
+
+    Returns:
+        Tuple of (changed_files, moved_files, deleted_files, new_files, duplicate_files)
+        - changed_files: List of (path, change_description) tuples
+        - moved_files: List of (source_path, destination_path, move_type) tuples
+        - deleted_files: List of (path,) tuples
+        - new_files: List of (path,) tuples
+        - duplicate_files: List of (source, duplicate, description, size, md5) tuples
+    """
     deleted_files: list[tuple[Path]] = []
     moved_files: list[tuple[Path, Path, str]] = []
     changed_files: list[tuple[Path, typing.Any]] = []
     new_files: list[tuple[Path]] = []
-    duplicate_files: list[tuple[str, str, str, str, str]] = []  # source, duplicate, description, size, md5
-
-    # Define key type descriptions for better readability
-    key_type_descriptions = {
-        0: "full match (name, type, size, md5, ctime, mtime)",
-        1: "content match (size, md5)",
-        2: "metadata match (name, ctime, mtime)",
-        3: "content and time match (size, md5, ctime, mtime)",
-        4: "path match"
-    }
 
     # Process duplicates from both lists
-    for dup in initial_list.duplicates:
-        key_type = dup['key_type']
-        description = key_type_descriptions.get(key_type, f"unknown type {key_type}")
-        size_info = f"{dup['size']} bytes" if dup['size'] > 0 else "unknown size"
-        md5_info = dup['md5'] if dup['md5'] else "no hash"
-
-        duplicate_files.append((
-            dup['source'],
-            dup['duplicate'],
-            f"old: {description}",
-            size_info,
-            md5_info
-        ))
-
-    for dup in new_list.duplicates:
-        key_type = dup['key_type']
-        description = key_type_descriptions.get(key_type, f"unknown type {key_type}")
-        size_info = f"{dup['size']} bytes" if dup['size'] > 0 else "unknown size"
-        md5_info = dup['md5'] if dup['md5'] else "no hash"
-
-        duplicate_files.append((
-            dup['source'],
-            dup['duplicate'],
-            f"new: {description}",
-            size_info,
-            md5_info
-        ))
+    duplicate_files = process_duplicates(initial_list, True)
+    duplicate_files.extend(process_duplicates(new_list, False))
 
     # search
     for key, data in initial_list.full.items():
@@ -252,7 +355,6 @@ def main():
     arguments = docopt(__doc__)
     old_yaml = Path(arguments['--old'])
     new_yaml = Path(arguments['--new'])
-    search_duplicates = arguments.get('--dup', False)
 
     if not old_yaml.is_file():
         print("The specified YAML file does not exist: " + str(old_yaml))
@@ -282,18 +384,17 @@ def main():
     else:
         # Create file indexes
         print('Parsing old data...')
-        initial_file_list = create_files_index(initial_data)
+        initial_file_list: FilesIndex = create_files_index(initial_data)
         print('Parsing new data...')
-        new_file_list = create_files_index(new_data)
+        new_file_list: FilesIndex = create_files_index(new_data)
 
         # Search for differences
-        changed_files, moved_files, deleted_files, new_files, duplicate_files = search_changes_in_fs_struct(initial_file_list, new_file_list)
+        changed_files, moved_files, deleted_files, new_files, duplicate_files = search_changes_in_fs_struct(
+            initial_list=initial_file_list,
+            new_list=new_file_list
+        )
 
-        # Only include duplicates if the --dup flag is set
-        if search_duplicates:
-            save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files)
-        else:
-            save_result_and_print_info(changed_files, moved_files, deleted_files, new_files)
+        save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files)
 
 
 if __name__ == "__main__":
