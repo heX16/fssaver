@@ -124,7 +124,7 @@ def time_trim_ms(t: datetime or float or int):
     return t
 
 
-
+# TODO: change to iterator style?
 def load_yaml_fss_file_stream(yaml_file: Path, process_item_func: typing.Callable[[dict, Path], None], encoding='utf-8'):
     """
     Process YAML file in a streaming fashion, applying custom processing function to each item.

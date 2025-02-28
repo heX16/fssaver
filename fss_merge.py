@@ -56,6 +56,7 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int, r
         }
         return merged_data
 
+    # TODO: use `fss_utils.load_yaml_fss_file_stream`
     index_data = load_yaml(path_to_index_hash, retries=retries, retries_pause=retries_pause)
 
     for file_name, file_data in index_data.items():

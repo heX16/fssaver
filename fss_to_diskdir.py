@@ -11,11 +11,11 @@ Options:
   --stdin       Read YAML from standard input.
   --stdout      Write output to standard output.
 
-See: "DiskDirW" and "DiskDirExtended_64bit" plugins for 
+See: "DiskDirW" and "DiskDirExtended_64bit" plugins for
 Double Commander (if you're a fan of opensource) or Total Commander.
 
 DiskDirW (2022.01.15 Version 1.2.4 released)
-URL: https://totalcmd.net/plugring/diskdirw.html  
+URL: https://totalcmd.net/plugring/diskdirw.html
 URL: https://wincmd.ru/plugring/diskdirw.html
 
 """
@@ -69,6 +69,7 @@ def save_to_stdout(output_lines):
         sys.stdout.write(line + "\n")
 
 def main(yaml_file=None, output_file=None, use_stdin=False, use_stdout=False):
+    # TODO: use `fss_utils.load_yaml_fss_file_stream`
     if use_stdin:
         flat_structure = yaml.safe_load(sys.stdin)
     else:
