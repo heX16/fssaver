@@ -25,6 +25,18 @@ from fss_utils import *
 g_yaml_name = '.index_hash.yaml'
 
 
+def add_data_to_merged_data(merged_data: dict, file_data: dict, file_name: str, root_path: Path, retries: int, retries_pause: int):
+    full_path = Path(file_name)
+    relative_path = full_path.relative_to(root_path)
+    merged_data[str(relative_path)] = file_data
+
+    if file_data['type'] == 'dir' or file_data['type'] == 'directory':
+        # Recursively process the contents of the directory
+        sub_index_file = full_path / g_yaml_name
+        sub_data = merge_contents(sub_index_file, retries, retries_pause, root_path)
+        merged_data.update(sub_data)
+
+
 def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int, root_path: Path):
     merged_data = {}
     if not path_to_index_hash.parent.exists():
@@ -47,15 +59,7 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int, r
     index_data = load_yaml(path_to_index_hash, retries=retries, retries_pause=retries_pause)
 
     for file_name, file_data in index_data.items():
-        full_path = path_to_index_hash.parent / file_name
-        relative_path = full_path.relative_to(root_path)
-        merged_data[str(relative_path)] = file_data
-
-        if file_data['type'] == 'dir' or file_data['type'] == 'directory':
-            # Recursively process the contents of the directory
-            sub_index_file = full_path / g_yaml_name
-            sub_data = merge_contents(sub_index_file, retries, retries_pause, root_path)
-            merged_data.update(sub_data)
+        add_data_to_merged_data(merged_data, file_data, file_name, root_path, retries, retries_pause)
 
     return merged_data
 
@@ -69,7 +73,10 @@ def main():
     retries = int(arguments['--retries'] or 1)
     retries_pause = int(arguments['--retries-pause'] or 1)
 
-    merged_structure = merge_contents(start_directory / g_yaml_name, retries, retries_pause, start_directory)
+    merged_structure = merge_contents(
+        start_directory / g_yaml_name,
+        retries, retries_pause,
+        start_directory)
 
     if not yaml_file.is_absolute():
         yaml_file = start_directory / yaml_file

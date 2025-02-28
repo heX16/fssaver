@@ -190,7 +190,7 @@ class FilesIndex:
         self.duplicates.extend(files_index.duplicates)
 
 
-def create_files_index(flat_structure: dict) -> FilesIndex:
+def create_files_index(files_index: FilesIndex, flat_structure: dict) -> FilesIndex:
     """
     Create a FilesIndex from a flat structure dictionary.
 
@@ -204,7 +204,6 @@ def create_files_index(flat_structure: dict) -> FilesIndex:
     Returns:
         A populated FilesIndex object
     """
-    files_index = FilesIndex()
     for relative_path_str, data in flat_structure.items():
         relative_path = Path(relative_path_str)
         files_index.add_item(data, relative_path)
@@ -384,9 +383,9 @@ def main():
     else:
         # Create file indexes
         print('Parsing old data...')
-        initial_file_list: FilesIndex = create_files_index(initial_data)
+        initial_file_list: FilesIndex = create_files_index(FilesIndex(), initial_data)
         print('Parsing new data...')
-        new_file_list: FilesIndex = create_files_index(new_data)
+        new_file_list: FilesIndex = create_files_index(FilesIndex(), new_data)
 
         # Search for differences
         changed_files, moved_files, deleted_files, new_files, duplicate_files = search_changes_in_fs_struct(
