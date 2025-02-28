@@ -23,6 +23,8 @@ import typing
 from pathlib import Path
 from docopt import docopt
 from concurrent.futures import ThreadPoolExecutor
+import yaml
+import time
 
 
 class FilesIndex:
@@ -350,6 +352,85 @@ def search_changes_in_fs_struct(initial_list: FilesIndex, new_list: FilesIndex):
     return changed_files, moved_files, deleted_files, new_files, duplicate_files
 
 
+def process_yaml_stream(yaml_file: Path, file_index: FilesIndex, encoding='utf-8'):
+    """
+    Process YAML file in a streaming fashion, adding items to FilesIndex.
+
+    Args:
+        yaml_file: Path to YAML file
+        file_index: FilesIndex object to populate
+        encoding: File encoding
+    """
+    try:
+        total_size = yaml_file.stat().st_size
+        items_processed = 0
+        last_print_time = time.time()
+        print(f'Processing {yaml_file.name}, size: {total_size} bytes...')
+
+        with open(yaml_file, 'r', encoding=encoding) as f:
+            loader = yaml.CLoader(f)
+            try:
+                # Skip stream start
+                loader.get_token()
+                # Skip document start
+                loader.get_token()
+                # Skip the root mapping start
+                loader.get_token()
+
+                # Process entries
+                while True:
+                    # Get key
+                    token = loader.get_token()
+                    if isinstance(token, yaml.MappingEndEvent):
+                        break
+                    key = token.value
+
+                    # Skip value start
+                    loader.get_token()  # MappingStartEvent
+
+                    # Get the file data as a dict
+                    data = {}
+                    while True:
+                        token = loader.get_token()
+                        if isinstance(token, yaml.MappingEndEvent):
+                            break
+
+                        # Get key-value pair
+                        field = token.value
+                        value = loader.get_token().value
+
+                        # Convert size to int
+                        if field == 'size':
+                            try:
+                                value = int(value)
+                            except (ValueError, TypeError):
+                                value = -1
+
+                        data[field] = value
+
+                    # Add to index
+                    file_index.add_item(data, Path(key))
+                    items_processed += 1
+
+                    # Print progress every 5 seconds
+                    current_time = time.time()
+                    if current_time - last_print_time >= 5:
+                        progress = (f.tell() / total_size) * 100
+                        print(f'Processing {yaml_file.name}: {progress:.1f}% ({items_processed} items)')
+                        last_print_time = current_time
+
+            finally:
+                loader.dispose()
+
+        # Print final progress
+        print(f'Completed {yaml_file.name}: 100% ({items_processed} items)')
+        return True
+
+    except Exception as e:
+        print(f'ERROR processing {yaml_file.name}: {str(e)}')
+        return False
+
+
 def main():
     arguments = docopt(__doc__)
     old_yaml = Path(arguments['--old'])
@@ -362,38 +443,34 @@ def main():
         print("The specified YAML file does not exist: " + str(new_yaml))
         exit(11)
 
-    print('Data loading...')
+    print('Data loading and processing...')
 
+    # Create file indexes
+    initial_file_list = FilesIndex()
+    new_file_list = FilesIndex()
+
+    # Process files in parallel using ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=2) as executor:
-        # Load data from files, simple code:
-        # initial_data = load_yaml(old_yaml)
-        # new_data = load_yaml(new_yaml)
+        future_initial = executor.submit(process_yaml_stream, old_yaml, initial_file_list)
+        future_new = executor.submit(process_yaml_stream, new_yaml, new_file_list)
 
-        # Run loading in parallel:
-        future_initial = executor.submit(load_yaml, old_yaml)
-        future_new = executor.submit(load_yaml, new_yaml)
+        # Wait for both tasks to complete
+        initial_success = future_initial.result()
+        new_success = future_new.result()
 
-        # Get results:
-        initial_data = future_initial.result()
-        new_data = future_new.result()
-    print('Data loaded')
+    if not initial_success or not new_success:
+        print("Error processing YAML files.")
+        exit(1)
 
-    if initial_data is None or new_data is None:
-        print("Error loading YAML files.")
-    else:
-        # Create file indexes
-        print('Parsing old data...')
-        initial_file_list: FilesIndex = create_files_index(FilesIndex(), initial_data)
-        print('Parsing new data...')
-        new_file_list: FilesIndex = create_files_index(FilesIndex(), new_data)
+    print('Data processing completed')
 
-        # Search for differences
-        changed_files, moved_files, deleted_files, new_files, duplicate_files = search_changes_in_fs_struct(
-            initial_list=initial_file_list,
-            new_list=new_file_list
-        )
+    # Search for differences
+    changed_files, moved_files, deleted_files, new_files, duplicate_files = search_changes_in_fs_struct(
+        initial_list=initial_file_list,
+        new_list=new_file_list
+    )
 
-        save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files)
+    save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files)
 
 
 if __name__ == "__main__":
