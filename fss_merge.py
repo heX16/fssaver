@@ -27,7 +27,12 @@ g_yaml_name = '.index_hash.yaml'
 
 def add_data_to_merged_data(merged_data: dict, file_data: dict, file_name: str, root_path: Path, retries: int, retries_pause: int):
     full_path = Path(file_name)
-    relative_path = full_path.relative_to(root_path)
+
+    if full_path.is_absolute():
+        relative_path = full_path.relative_to(root_path)
+    else:
+        relative_path = full_path
+
     merged_data[str(relative_path)] = file_data
 
     if file_data['type'] == 'dir' or file_data['type'] == 'directory':
