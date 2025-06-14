@@ -35,7 +35,7 @@ def add_data_to_merged_data(merged_data: dict, file_data: dict, file_name: str, 
 
     merged_data[str(relative_path)] = file_data
 
-    if file_data['type'] == 'dir' or file_data['type'] == 'directory':
+    if file_data['type'] == 'dir':
         # Recursively process the contents of the directory
         sub_index_file = full_path / g_yaml_name
         sub_data = merge_contents(sub_index_file, retries, retries_pause, root_path)

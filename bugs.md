@@ -1,4 +1,40 @@
 
+# почемуто не правильно работает рекурсия при сохранении
+
+```
+Me
+- 2022
+- 2023
+```
+
+надо хотябы пропускать и продолжать работу, но лучше разобраться что пошло не так
+
+Traceback (most recent call last):
+  File "H:\Pyt\fssaver\fss_save.py", line 251, in <module>
+    main()
+    ~~~~^^
+  File "H:\Pyt\fssaver\fss_save.py", line 245, in main
+    create_file_structure(start_path, no_update_md5=no_update_md5, recursion=recursion, retries=retries, retries_pause=retries_pause)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 183, in create_file_structure
+    create_file_structure(dir_path, no_update_md5=no_update_md5, recursion=recursion,
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        retries=retries, retries_pause=retries_pause)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 183, in create_file_structure
+    create_file_structure(dir_path, no_update_md5=no_update_md5, recursion=recursion,
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        retries=retries, retries_pause=retries_pause)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 136, in create_file_structure
+    for item in dir_path.iterdir():
+                ~~~~~~~~~~~~~~~~^^
+  File "C:\Program Files\Python313\Lib\pathlib\_local.py", line 575, in iterdir
+    with os.scandir(root_dir) as scandir_it:
+         ~~~~~~~~~~^^^^^^^^^^
+FileNotFoundError: [WinError 3] The system cannot find the path specified: 'q:\\Me\\2022\\2023'
+
+
 # hidden = read only
 
 не может писать в файлы с флагом hidden под windows. (WTF??)
