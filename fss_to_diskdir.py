@@ -1,10 +1,10 @@
 """
-YAML to Text File Converter
+Converter FSS format to DiskDir format
 
 Usage:
-  yaml_to_txt.py <yaml_file> [<txt_file>]
-  yaml_to_txt.py (--stdin --stdout)
-  yaml_to_txt.py -h | --help
+  fss_to_diskdir.py <yaml_file> [<txt_file>]
+  fss_to_diskdir.py (--stdin --stdout)
+  fss_to_diskdir.py -h | --help
 
 Options:
   -h --help     Show this help message and exit.
@@ -12,7 +12,7 @@ Options:
   --stdout      Write output to standard output.
 
 See: "DiskDirW" and "DiskDirExtended_64bit" plugins for
-Double Commander (if you're a fan of opensource) or Total Commander.
+Double Commander (if you're a fan of opensource) or some other file "Commander".
 
 DiskDirW (2022.01.15 Version 1.2.4 released)
 URL: https://totalcmd.net/plugring/diskdirw.html
