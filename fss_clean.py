@@ -1,22 +1,22 @@
-import os
-import argparse
+"""
+FSS Cleaner - remove .index_hash.yaml files recursively
 
-def remove_index_hash_files(directory):
-    # Walk through the directory tree
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.index_hash.yaml'):
-                file_path = os.path.join(root, file)
-                try:
-                    os.remove(file_path)
-                    print(f'Removed: {file_path}')
-                except Exception as e:
-                    print(f'Error removing {file_path}: {e}')
+Usage:
+  fss_clean.py <path>
+  fss_clean.py -h | --help
+
+Options:
+  -h --help     Show this help message.
+"""
+
+from pathlib import Path
+from docopt import docopt
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Remove .index_hash.yaml files recursively from a given directory.')
-    parser.add_argument('path', type=str, help='The path to the directory to scan.')
-    args = parser.parse_args()
-
-    remove_index_hash_files(args.path)
-
+    directory = Path(docopt(__doc__)['<path>'])
+    for file_path in directory.rglob('*.index_hash.yaml'):
+        try:
+            file_path.unlink()
+            print(f'Removed: {file_path}')
+        except Exception as e:
+            print(f'Error removing {file_path}: {e}')
