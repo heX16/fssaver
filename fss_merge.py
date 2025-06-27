@@ -64,8 +64,9 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int, r
     # TODO: use `fss_utils.load_yaml_fss_file_stream`
     index_data = load_yaml(path_to_index_hash, retries=retries, retries_pause=retries_pause)
 
-    for file_name, file_data in index_data.items():
-        add_data_to_merged_data(merged_data, file_data, file_name, root_path, retries, retries_pause)
+    if index_data is not None:
+        for file_name, file_data in index_data.items():
+            add_data_to_merged_data(merged_data, file_data, file_name, root_path, retries, retries_pause)
 
     return merged_data
 
@@ -90,14 +91,14 @@ def main():
     # Check if the '--not-add-date' option is present
     if not arguments['--not-add-date']:
         # Get the current date in the format YYYY-MM-DD
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        current_date = datetime.now().strftime('%Y-%m-%d')
 
         # Split the file name and extension
         file_name = yaml_file.stem
         file_extension = yaml_file.suffix
 
         # Append the current date to the filename
-        new_file_name = f"{file_name}_{current_date}{file_extension}"
+        new_file_name = f'{file_name}_{current_date}{file_extension}'
 
         # Create a new Path object with the updated filename
         yaml_file = yaml_file.with_name(new_file_name)

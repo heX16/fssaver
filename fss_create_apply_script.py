@@ -125,14 +125,14 @@ def generate_script_content(csv_file: Path, is_windows: bool, show_progress: boo
                 # Check row format
                 if len(row) != 3:
                     # Skip rows that don't have exactly 3 elements
-                    print(f"Warning: Row {i} skipped, invalid format: {row}")
+                    print(f'Warning: Row {i} skipped, invalid format: {row}')
                     continue
 
                 src, dst, operation = row
 
                 # Check for empty values
                 if not src or not dst:
-                    print(f"Warning: Row {i} skipped, empty source or destination: {row}")
+                    print(f'Warning: Row {i} skipped, empty source or destination: {row}')
                     continue
 
                 # Extract destination directory
@@ -151,13 +151,13 @@ def generate_script_content(csv_file: Path, is_windows: bool, show_progress: boo
 
         # Add directory creation commands
         if directories:
-            script_content += f"\n{gen_strs['dir_comment']}\n"
+            script_content += f'\n{gen_strs["dir_comment"]}\n'
             for directory in sorted(directories):
                 script_content += gen_strs['mkdir_cmd'].format(directory) + '\n'
 
         # Add move commands
         if move_commands:
-            script_content += f"\n{gen_strs['file_comment']}\n"
+            script_content += f'\n{gen_strs["file_comment"]}\n'
 
             # Add progress reporting
             total_moves = len(move_commands)
@@ -180,8 +180,8 @@ def generate_script_content(csv_file: Path, is_windows: bool, show_progress: boo
         return script_content
 
     except Exception as e:
-        print(f"Error processing CSV file: {e}")
-        return ""
+        print(f'Error processing CSV file: {e}')
+        return ''
 
 
 def save_script(content: str, script_file: Path, is_windows: bool):
@@ -201,10 +201,10 @@ def save_script(content: str, script_file: Path, is_windows: bool):
         if not is_windows:
             script_file.chmod(script_file.stat().st_mode | 0o755)
 
-        print(f"Script created successfully: {script_file}")
+        print(f'Script created successfully: {script_file}')
 
     except Exception as e:
-        print(f"Error saving script: {e}")
+        print(f'Error saving script: {e}')
 
 
 def main():
@@ -218,7 +218,7 @@ def main():
     force_linux = arguments.get('--linux', False)
 
     if force_windows and force_linux:
-        print("Error: Cannot specify both --wnd and --linux")
+        print('Error: Cannot specify both --wnd and --linux')
         return
 
     # Determine target script type
@@ -227,10 +227,10 @@ def main():
     # Update extension based on script type
     if is_windows and output_file.suffix != '.bat':
         output_file = output_file.with_suffix('.bat')
-        print(f"Note: Changed output filename to {output_file}")
+        print(f'Note: Changed output filename to {output_file}')
 
     if not input_file.is_file():
-        print(f"Error: Input file not found: {input_file}")
+        print(f'Error: Input file not found: {input_file}')
         return
 
     # Generate and save the script
@@ -239,5 +239,5 @@ def main():
         save_script(script_content, output_file, is_windows)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -49,7 +49,7 @@ def open_with_attribute_handling(filename: str | Path, mode='w'):
         import win32con
 
         # Get current file attributes
-        old_attributes = win32file.GetFileAttributes(filename)
+        old_attributes = win32file.GetFileAttributes(str(filename))
         is_readonly = old_attributes & win32con.FILE_ATTRIBUTE_READONLY
         is_hidden = old_attributes & win32con.FILE_ATTRIBUTE_HIDDEN
 
@@ -62,7 +62,7 @@ def open_with_attribute_handling(filename: str | Path, mode='w'):
             new_attributes &= ~win32con.FILE_ATTRIBUTE_HIDDEN
 
         if new_attributes != old_attributes:
-            win32file.SetFileAttributes(filename, new_attributes)
+            win32file.SetFileAttributes(str(filename), new_attributes)
     else:
         # For Unix-like systems
         old_mode = os.stat(filename).st_mode
@@ -78,7 +78,7 @@ def open_with_attribute_handling(filename: str | Path, mode='w'):
         if is_wnd():
             if is_readonly or is_hidden:
                 # Restore original attributes
-                win32file.SetFileAttributes(filename, old_attributes)
+                win32file.SetFileAttributes(str(filename), old_attributes)
         else:
             if is_readonly:
                 # Restore original permissions
@@ -157,13 +157,13 @@ def load_yaml_fss_file_stream(yaml_file: Path, process_item_func: typing.Callabl
                     if isinstance(event, yaml.MappingEndEvent):
                         break
                     if not isinstance(event, yaml.ScalarEvent):
-                        raise ValueError(f"Expected key (ScalarEvent), got {type(event)}")
+                        raise ValueError(f'Expected key (ScalarEvent), got {type(event)}')
                     key = event.value
 
                     # Wait for the start of the nested dictionary
                     event = loader.get_event()
                     if not isinstance(event, yaml.MappingStartEvent):
-                        raise ValueError(f"Expected mapping start, got {type(event)}")
+                        raise ValueError(f'Expected mapping start, got {type(event)}')
 
                     # Get file data as a dictionary
                     data = {}
@@ -173,12 +173,12 @@ def load_yaml_fss_file_stream(yaml_file: Path, process_item_func: typing.Callabl
                             break
 
                         if not isinstance(event, yaml.ScalarEvent):
-                            raise ValueError(f"Expected field name (ScalarEvent), got {type(event)}")
+                            raise ValueError(f'Expected field name (ScalarEvent), got {type(event)}')
                         field = event.value
 
                         event = loader.get_event()
                         if not isinstance(event, yaml.ScalarEvent):
-                            raise ValueError(f"Expected value (ScalarEvent) for field {field}, got {type(event)}")
+                            raise ValueError(f'Expected value (ScalarEvent) for field {field}, got {type(event)}')
                         value = event.value
 
                         # Convert size to int
@@ -266,18 +266,18 @@ def save_csv_file_list_or_print(header: str, data: list[tuple], csv_filename=Non
         csv_headers: Optional list of column headers for the CSV
     """
     if not data:
-        print(f"{header} not detected")
+        print(f'{header} not detected')
         return
 
     data_str = [list(map(str, item)) for item in data]
     if not csv_filename:
-        print(f"{header} list:")
+        print(f'{header} list:')
         for item in data_str:
             print(';   '.join(item))
 
     if csv_filename:
         save_to_csv(Path(csv_filename), data_str, csv_headers)
-        print(f"{header} saved to {csv_filename}")
+        print(f'{header} saved to {csv_filename}')
 
 
 def save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files):
@@ -291,17 +291,17 @@ def save_result_and_print_info(changed_files, moved_files, deleted_files, new_fi
         new_files: List of new files
         duplicate_files: List of duplicate files (optional)
     """
-    changed_headers = ["File Path", "Changes"]
-    save_csv_file_list_or_print("Changed files", changed_files, "changed.csv", changed_headers)
+    changed_headers = ['File Path', 'Changes']
+    save_csv_file_list_or_print('Changed files', changed_files, 'changed.csv', changed_headers)
 
-    moved_headers = ["Source Path", "Destination Path", "Move Type"]
-    save_csv_file_list_or_print("Moved files", moved_files, "moved.csv", moved_headers)
+    moved_headers = ['Source Path', 'Destination Path', 'Move Type']
+    save_csv_file_list_or_print('Moved files', moved_files, 'moved.csv', moved_headers)
 
-    deleted_headers = ["File Path"]
-    save_csv_file_list_or_print("Deleted files", deleted_files, "deleted.csv", deleted_headers)
+    deleted_headers = ['File Path']
+    save_csv_file_list_or_print('Deleted files', deleted_files, 'deleted.csv', deleted_headers)
 
-    new_headers = ["File Path"]
-    save_csv_file_list_or_print("New files", new_files, "new.csv", new_headers)
+    new_headers = ['File Path']
+    save_csv_file_list_or_print('New files', new_files, 'new.csv', new_headers)
 
-    duplicate_headers = ["Source File", "Duplicate File", "Match Type", "Size", "MD5 Hash"]
-    save_csv_file_list_or_print("Duplicate files", duplicate_files, "duplicates.csv", duplicate_headers)
+    duplicate_headers = ['Source File', 'Duplicate File', 'Match Type', 'Size', 'MD5 Hash']
+    save_csv_file_list_or_print('Duplicate files', duplicate_files, 'duplicates.csv', duplicate_headers)

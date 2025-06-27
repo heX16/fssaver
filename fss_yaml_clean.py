@@ -71,5 +71,5 @@ def main():
     # Write YAML data using save_to_yaml from fss_utils
     save_to_yaml(data, Path(output_file))
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

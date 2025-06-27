@@ -203,15 +203,13 @@ def read_file_and_calculate_md5(file_path: Path) -> Tuple[str, bool]:
     is_zero = True
     md5_hash = hashlib.md5()
     if file_path.stat().st_size > 0:
-        with open(file_path, "rb") as f:
+        with open(file_path, 'rb') as f:
             while chunk := f.read(g_chuck_size):
                 if len(chunk) != chunk.count(b'\x00'):
                     is_zero = False
                 md5_hash.update(chunk)
-    else:
-        md5_hash = ''
-        is_zero = False
-    return (md5_hash.hexdigest(), is_zero)
+        return (md5_hash.hexdigest(), is_zero)
+    return ('', False)
 
 
 def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pause: float) -> Tuple[str, bool]:
@@ -229,11 +227,11 @@ def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pau
             return read_file_and_calculate_md5(file_path)
         except OSError as e:
             if attempt < retries:
-                print(f"WARN: Read error. Retrying {attempt}/{retries} in {retries_pause} seconds... ")
+                print(f'WARN: Read error. Retrying {attempt}/{retries} in {retries_pause} seconds... ')
                 time.sleep(retries_pause)
                 attempt += 1
             else:
-                print(f"ERROR: {e.errno} - {e.strerror}")
+                print(f'ERROR: {e.errno} - {e.strerror}')
                 return ('', False)
                 # TODO: raise
 
@@ -252,8 +250,8 @@ def main():
     if start_path.exists() and start_path.is_dir():
         create_file_structure(start_path, no_update_md5=no_update_md5, recursion=recursion, retries=retries, retries_pause=retries_pause)
     else:
-        print("The specified path does not exist or is not a directory.")
+        print('The specified path does not exist or is not a directory.')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

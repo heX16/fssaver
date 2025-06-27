@@ -28,27 +28,27 @@ class TestFSSScripts(unittest.TestCase):
 
         # Check that .index_hash.yaml files are created
         index_file = self.test_dir / '.index_hash.yaml'
-        self.assertTrue(index_file.exists(), "Index file not created in test directory")
+        self.assertTrue(index_file.exists(), 'Index file not created in test directory')
 
         subdir_index_file = self.test_dir / 'subdir' / '.index_hash.yaml'
-        self.assertTrue(subdir_index_file.exists(), "Index file not created in subdirectory")
+        self.assertTrue(subdir_index_file.exists(), 'Index file not created in subdirectory')
 
         # Load and check contents of index file at root directory
         with index_file.open('r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
 
-        self.assertIn('file1.txt', data, "file1.txt not found in index file")
-        self.assertIn('file2.txt', data, "file2.txt not found in index file")
-        self.assertIn('subdir', data, "subdir not found in index file")
-        self.assertEqual(data['file1.txt']['type'], 'file', "Incorrect type for file1.txt")
-        self.assertEqual(data['subdir']['type'], 'dir', "Incorrect type for subdir")
+        self.assertIn('file1.txt', data, 'file1.txt not found in index file')
+        self.assertIn('file2.txt', data, 'file2.txt not found in index file')
+        self.assertIn('subdir', data, 'subdir not found in index file')
+        self.assertEqual(data['file1.txt']['type'], 'file', 'Incorrect type for file1.txt')
+        self.assertEqual(data['subdir']['type'], 'dir', 'Incorrect type for subdir')
 
         # Load and check contents of index file in subdirectory
         with subdir_index_file.open('r', encoding='utf-8') as f:
             sub_data = yaml.safe_load(f)
 
-        self.assertIn('file3.txt', sub_data, "file3.txt not found in subdirectory index file")
-        self.assertEqual(sub_data['file3.txt']['type'], 'file', "Incorrect type for file3.txt")
+        self.assertIn('file3.txt', sub_data, 'file3.txt not found in subdirectory index file')
+        self.assertEqual(sub_data['file3.txt']['type'], 'file', 'Incorrect type for file3.txt')
 
     def test_fss_merge(self):
         # First, run fss_save.py
@@ -59,7 +59,7 @@ class TestFSSScripts(unittest.TestCase):
         subprocess.run(['python', 'fss_merge.py', str(self.test_dir), '--file', str(merged_file), '--not-add-date'], check=True)
 
         # Check that merged file is created
-        self.assertTrue(merged_file.exists(), "Merged file not created")
+        self.assertTrue(merged_file.exists(), 'Merged file not created')
 
         # Load and check contents of merged file
         with merged_file.open('r', encoding='utf-8') as f:
@@ -73,7 +73,7 @@ class TestFSSScripts(unittest.TestCase):
             'subdir/file3.txt',
         ]
         for path in expected_paths:
-            self.assertIn(path, data, f"{path} not found in merged file")
+            self.assertIn(path, data, f'{path} not found in merged file')
     
     def test_fss_compare(self):
         # First, create two versions of the directory
@@ -106,12 +106,12 @@ class TestFSSScripts(unittest.TestCase):
         # Print output for debugging
         print(output)
 
-        self.assertIn('Changed files', output, "Changed files section not found in compare output")
-        self.assertIn('file2.txt', output, "file2.txt should be listed as changed")
-        self.assertIn('Deleted files', output, "Deleted files section not found in compare output")
-        self.assertIn('file1.txt', output, "file1.txt should be listed as deleted")
-        self.assertIn('New files', output, "New files section not found in compare output")
-        self.assertIn('file4.txt', output, "file4.txt should be listed as new")
+        self.assertIn('Changed files', output, 'Changed files section not found in compare output')
+        self.assertIn('file2.txt', output, 'file2.txt should be listed as changed')
+        self.assertIn('Deleted files', output, 'Deleted files section not found in compare output')
+        self.assertIn('file1.txt', output, 'file1.txt should be listed as deleted')
+        self.assertIn('New files', output, 'New files section not found in compare output')
+        self.assertIn('file4.txt', output, 'file4.txt should be listed as new')
 
         # Cleanup
         shutil.rmtree(version1)
@@ -141,12 +141,12 @@ class TestFSSScripts(unittest.TestCase):
         # Print output for debugging
         print(output)
 
-        self.assertIn('Changed files', output, "Changed files section not found in compare output")
-        self.assertIn('file2.txt', output, "file2.txt should be listed as changed")
-        self.assertIn('Deleted files', output, "Deleted files section not found in compare output")
-        self.assertIn('file1.txt', output, "file1.txt should be listed as deleted")
-        self.assertIn('New files', output, "New files section not found in compare output")
-        self.assertIn('file5.txt', output, "file5.txt should be listed as new")
+        self.assertIn('Changed files', output, 'Changed files section not found in compare output')
+        self.assertIn('file2.txt', output, 'file2.txt should be listed as changed')
+        self.assertIn('Deleted files', output, 'Deleted files section not found in compare output')
+        self.assertIn('file1.txt', output, 'file1.txt should be listed as deleted')
+        self.assertIn('New files', output, 'New files section not found in compare output')
+        self.assertIn('file5.txt', output, 'file5.txt should be listed as new')
     
 if __name__ == '__main__':
     unittest.main()

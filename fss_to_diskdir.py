@@ -46,13 +46,13 @@ def format_output(flat_structure):
             full_path = str(relative_path)
             size = data['size']
             ctime = convert_iso8601_to_custom_format(data['ctime'])
-            output_lines.append(f"{full_path}\t{size}\t{ctime}")
+            output_lines.append(f'{full_path}\t{size}\t{ctime}')
             total_size += size
             total_files += 1
         elif data['type'] == 'dir':
             full_path = str(relative_path) + '\\'
             ctime = convert_iso8601_to_custom_format(data['ctime'])
-            output_lines.append(f"{full_path}\t0\t{ctime}")
+            output_lines.append(f'{full_path}\t0\t{ctime}')
             # Directories do not contribute to total size and files directly
             # But if needed, we can count them
             # total_files += 1
@@ -62,11 +62,11 @@ def format_output(flat_structure):
 def save_to_file(output_lines, output_file):
     with open(output_file, 'w', encoding='utf-8') as f:
         for line in output_lines:
-            f.write(line + "\n")
+            f.write(line + '\n')
 
 def save_to_stdout(output_lines):
     for line in output_lines:
-        sys.stdout.write(line + "\n")
+        sys.stdout.write(line + '\n')
 
 def main(yaml_file=None, output_file=None, use_stdin=False, use_stdout=False):
     # TODO: use `fss_utils.load_yaml_fss_file_stream`
@@ -74,10 +74,13 @@ def main(yaml_file=None, output_file=None, use_stdin=False, use_stdout=False):
         flat_structure = yaml.safe_load(sys.stdin)
     else:
         # Load YAML data using load_yaml from fss_utils
+        if yaml_file is None:
+            print('ERROR: No YAML file specified')
+            return
         flat_structure = load_yaml(Path(yaml_file))
 
     if flat_structure is None:
-        print(f"ERROR: Failed to load YAML data from {yaml_file}")
+        print(f'ERROR: Failed to load YAML data from {yaml_file}')
         return
 
     output_lines, total_files, total_size = format_output(flat_structure)
@@ -87,7 +90,7 @@ def main(yaml_file=None, output_file=None, use_stdin=False, use_stdout=False):
     else:
         save_to_file(output_lines, output_file)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     arguments = docopt(__doc__)
     yaml_file = arguments['<yaml_file>']
     output_file = arguments['<txt_file>'] if arguments['<txt_file>'] else (Path(yaml_file).with_suffix('.lst')) if yaml_file else None

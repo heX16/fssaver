@@ -46,11 +46,11 @@ class FilesIndex:
 
     # Define key type descriptions for better readability
     KEY_TYPE_DESCRIPTIONS = {
-        0: "full match (name, type, size, md5, ctime, mtime)",
-        1: "content match (size, md5)",
-        2: "metadata match (name, ctime, mtime)",
-        3: "content and time match (size, md5, ctime, mtime)",
-        4: "path match"
+        0: 'full match (name, type, size, md5, ctime, mtime)',
+        1: 'content match (size, md5)',
+        2: 'metadata match (name, ctime, mtime)',
+        3: 'content and time match (size, md5, ctime, mtime)',
+        4: 'path match'
     }
 
     def __init__(self):
@@ -163,8 +163,8 @@ class FilesIndex:
                 self.duplicates.append(duplicate_info)
 
                 # Get description for this key type
-                description = self.KEY_TYPE_DESCRIPTIONS.get(i, f"unknown type {i}")
-                size_info = f"{data.get('size', -1)} bytes" if data.get('size', -1) > 0 else "unknown size"
+                description = self.KEY_TYPE_DESCRIPTIONS.get(i, f'unknown type {i}')
+                size_info = f'{data.get("size", -1)} bytes' if data.get('size', -1) > 0 else 'unknown size'
 
                 continue
             else:
@@ -224,18 +224,18 @@ def process_duplicates(file_index: FilesIndex, is_old_index: bool) -> list[tuple
     """
     result = []
 
-    prefix = "old" if is_old_index else "new"
+    prefix = 'old' if is_old_index else 'new'
 
     for dup in file_index.duplicates:
         key_type = dup['key_type']
-        description = FilesIndex.KEY_TYPE_DESCRIPTIONS.get(key_type, f"unknown type {key_type}")
-        size_info = f"{dup['size']} bytes" if dup['size'] > 0 else "unknown size"
-        md5_info = dup['md5'] if dup['md5'] else "no hash"
+        description = FilesIndex.KEY_TYPE_DESCRIPTIONS.get(key_type, f'unknown type {key_type}')
+        size_info = f'{dup["size"]} bytes' if dup['size'] > 0 else 'unknown size'
+        md5_info = dup['md5'] if dup['md5'] else 'no hash'
 
         result.append((
             dup['source'],
             dup['duplicate'],
-            f"{prefix}: {description}",
+            f'{prefix}: {description}',
             size_info,
             md5_info
         ))
@@ -352,10 +352,10 @@ def main():
     new_yaml = Path(arguments['--new'])
 
     if not old_yaml.is_file():
-        print("The specified YAML file does not exist: " + str(old_yaml))
+        print('The specified YAML file does not exist: ' + str(old_yaml))
         exit(10)
     elif not new_yaml.is_file():
-        print("The specified YAML file does not exist: " + str(new_yaml))
+        print('The specified YAML file does not exist: ' + str(new_yaml))
         exit(11)
 
     print('Data loading and processing...')
@@ -382,7 +382,7 @@ def main():
         new_success = future_new.result()
 
     if not initial_success or not new_success:
-        print("Error processing YAML files.")
+        print('Error processing YAML files.')
         exit(1)
 
     print('Data processing completed')
@@ -396,5 +396,5 @@ def main():
     fss_utils.save_result_and_print_info(changed_files, moved_files, deleted_files, new_files, duplicate_files)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
