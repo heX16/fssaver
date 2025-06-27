@@ -1,0 +1,75 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "FSS: Debug Save Current Directory",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/fss_save.py",
+            "args": ["."],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false
+        },
+        {
+            "name": "FSS: Debug Save with Custom Path",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/fss_save.py",
+            "args": ["${input:debugFolderPath}"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false
+        },
+        {
+            "name": "FSS: Debug Merge Structures",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/fss_merge.py",
+            "args": [".", "debug_merged.yaml"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false
+        },
+        {
+            "name": "FSS: Debug Compare Structures",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/fss_compare.py",
+            "args": ["--old=${input:debugOldFile}", "--new=${input:debugNewFile}"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false
+        },
+        {
+            "name": "FSS: Debug Tests",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_fss_scripts.py",
+            "args": [],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false
+        }
+    ],
+    "inputs": [
+        {
+            "id": "debugFolderPath",
+            "description": "Enter folder path for debugging",
+            "default": ".",
+            "type": "promptString"
+        },
+        {
+            "id": "debugOldFile",
+            "description": "Enter path to old YAML file for debugging",
+            "default": "tests/test_initial_state.yaml",
+            "type": "promptString"
+        },
+        {
+            "id": "debugNewFile",
+            "description": "Enter path to new YAML file for debugging", 
+            "default": "tests/test_new_state.yaml",
+            "type": "promptString"
+        }
+    ]
+} 

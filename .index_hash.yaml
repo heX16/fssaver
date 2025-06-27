@@ -1,0 +1,115 @@
+1.log:
+  ctime: 2025-06-14_15:42:40Z
+  mtime: 2025-06-14_15:42:40Z
+  size: 0
+  type: file
+__pycache__:
+  ctime: 2025-02-27_15:01:06Z
+  mtime: 2025-04-12_13:11:14Z
+  type: dir
+bugs.md:
+  ctime: 2024-05-31_12:20:51Z
+  md5: a1730952e6f90512f80de66930e075b1
+  mtime: 2025-04-19_11:32:46Z
+  size: 5302
+  type: file
+fss_clean.py:
+  ctime: 2024-06-12_09:49:51Z
+  md5: d890fe2a6d642e0cd4106d53afef46d0
+  mtime: 2025-04-19_11:24:16Z
+  size: 530
+  type: file
+fss_compare.py:
+  ctime: 2023-09-28_14:08:55Z
+  md5: 2481f86b75d29ab718053835a1b2615c
+  mtime: 2025-02-28_17:11:59Z
+  size: 15958
+  type: file
+fss_create_apply_script.py:
+  ctime: 2025-02-27_23:59:11Z
+  md5: 6618e2db9e00e1a67fabac533391c04c
+  mtime: 2025-02-28_01:07:42Z
+  size: 8442
+  type: file
+fss_merge.py:
+  ctime: 2023-09-28_15:18:58Z
+  md5: aee12fc37fdcf862249004ff62997ace
+  mtime: 2025-04-12_13:57:58Z
+  size: 3853
+  type: file
+fss_run_comparison.py:
+  ctime: 2023-09-28_14:08:55Z
+  md5: 86de101c98c87a632f4c9272daa0cc3c
+  mtime: 2025-02-27_17:34:23Z
+  size: 1449
+  type: file
+fss_save.py:
+  ctime: 2024-06-11_16:22:58Z
+  md5: 66b049d945f69289d21686f1574596bd
+  mtime: 2025-06-14_15:38:32Z
+  size: 8838
+  type: file
+fss_to_diskdir.py:
+  ctime: 2024-06-10_19:05:42Z
+  md5: 7081251621934749dd5995e6a75b029d
+  mtime: 2025-04-12_17:35:30Z
+  size: 3307
+  type: file
+fss_to_zip.py:
+  ctime: 2025-04-12_17:39:11Z
+  md5: 08f9ab281278615dcde475ffae69375f
+  mtime: 2025-04-12_17:51:55Z
+  size: 3285
+  type: file
+fss_utils.py:
+  ctime: 2023-10-04_04:08:35Z
+  md5: 7a3c9886bf1a7ab240525106a0a7c26f
+  mtime: 2025-02-28_17:18:58Z
+  size: 11717
+  type: file
+fss_yaml_clean.py:
+  ctime: 2024-05-31_16:33:39Z
+  md5: a6c22fe8efe7ff052e748fde1ca59c67
+  mtime: 2024-12-27_23:13:37Z
+  size: 2811
+  type: file
+promts.md:
+  ctime: 2025-02-27_23:55:59Z
+  md5: 9fae5da68924c7fb3c8674031996988d
+  mtime: 2025-02-27_23:58:32Z
+  size: 4107
+  type: file
+readme_old_del_me.md:
+  ctime: 2025-02-27_23:56:30Z
+  md5: a6b1d886dceff2f9b92bf779b0d3bc01
+  mtime: 2025-02-27_23:57:33Z
+  size: 10257
+  type: file
+readme_rus.md:
+  ctime: 2021-01-30_17:18:20Z
+  md5: ee65234b9d7ea6ae6ddf3e920b592e95
+  mtime: 2025-06-14_14:24:51Z
+  size: 10929
+  type: file
+requirements.txt:
+  ctime: 2025-06-27_11:36:07Z
+  md5: fffebc262af535ce97148cc5127cf106
+  mtime: 2025-06-27_11:36:09Z
+  size: 27
+  type: file
+test_fss_scripts.py:
+  ctime: 2024-12-29_20:24:42Z
+  md5: 37f1ee9a2348571b3e6f7815c0bac272
+  mtime: 2024-12-29_20:26:19Z
+  size: 7216
+  type: file
+tests:
+  ctime: 2024-12-27_20:13:38Z
+  mtime: 2024-12-27_20:14:12Z
+  type: dir
+todo.md:
+  ctime: 2025-02-27_23:57:18Z
+  md5: ec0217cf8879964e1949cc166f6f5196
+  mtime: 2025-06-27_11:49:19Z
+  size: 10370
+  type: file

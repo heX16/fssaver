@@ -109,14 +109,17 @@ def save_to_yaml(data, output_file, encoding='utf-8') -> bool:
     return saved
 
 
-def time_to_iso8601_gmt_str(t: datetime or float or int, separator='_'):
+def time_to_iso8601_gmt_str(t: datetime | float | int, separator='_'):
     if isinstance(t, (float, int)):
+        # Handle timestamps before 1970 (Unix epoch) - This happens in Windows system files
+        if t < 0:
+            return f'1601-01-01{separator}00:00:00Z'  # Windows FILETIME epoch fallback
         return datetime.fromtimestamp(t, tz=timezone.utc).strftime(f'%Y-%m-%d{separator}%H:%M:%SZ')
     elif isinstance(t, datetime):
         return t.astimezone(timezone.utc).strftime(f'%Y-%m-%d{separator}%H:%M:%SZ')
 
 
-def time_trim_ms(t: datetime or float or int):
+def time_trim_ms(t: datetime | float | int):
     if type(t) == float:
         return int(t)
     elif type(t) == datetime:

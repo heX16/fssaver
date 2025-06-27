@@ -14,6 +14,7 @@ Options:
 """
 
 import os
+from typing import Tuple
 import yaml
 import hashlib
 from pathlib import Path
@@ -26,11 +27,13 @@ g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
 g_ignore_linux_hide_files = True
 
+
 def filter_dir(path: Path) -> bool:
     # TODO: add more flexibility
     if path.is_dir() and (path.name == 'System Volume Information' or path.name == '$RECYCLE.BIN'):
         return True
     return False
+
 
 def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retries_pause: float) -> dict:
     """
@@ -57,6 +60,7 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
         'dir':
             contents[]: list
     """
+    data_stat = data.stat()
 
     if data.is_dir():
         r['type'] = 'dir'
@@ -70,17 +74,17 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
         r['type'] = 'file'
         dict_del_item(r, 'contents')
 
-        ctime = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_ctime))
-        mtime = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
+        ctime = time_to_iso8601_gmt_str(time_trim_ms(data_stat.st_ctime))
+        mtime = time_to_iso8601_gmt_str(time_trim_ms(data_stat.st_mtime))
 
         # TODO: add `if md5 not present: ...`
-        if (r.get('size', -1) != data.stat().st_size or
+        if (r.get('size', -1) != data_stat.st_size or
            (not no_update_md5 and (
            r.get('ctime', '') != ctime or
            r.get('mtime', '') != mtime))):
 
             # If dates or size changed, recalculate hash
-            if data.stat().st_size > 0:
+            if data_stat.st_size > 0:
                 md5, zeros = read_file_and_calculate_md5_retry(data, retries, retries_pause)
                 if md5 != False:
                     r['md5'] = md5
@@ -97,7 +101,7 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
                 dict_del_item(r, 'md5')
                 dict_del_item(r, 'zeros')
 
-        r['size'] = data.stat().st_size
+        r['size'] = data_stat.st_size
     else:
         r['type'] = 'unknown'
         return r
@@ -107,9 +111,10 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
     else:
         dict_del_item(r, 'symlink')
 
-    r['ctime'] = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_ctime))
-    r['mtime'] = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_mtime))
+    r['ctime'] = time_to_iso8601_gmt_str(time_trim_ms(data_stat.st_ctime))
+    r['mtime'] = time_to_iso8601_gmt_str(time_trim_ms(data_stat.st_mtime))
     return r
+
 
 def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion: bool = True, retries: int = 1, retries_pause: int = 1):
     if filter_dir(dir_path):
@@ -177,15 +182,18 @@ def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion
     # Search directory in list (for recursion)
     for name, content in file_structure.items():
         if content['type'] == 'dir':
-            dir_path = dir_path / name
             if recursion:
-                # Recursion!
-                create_file_structure(dir_path, no_update_md5=no_update_md5, recursion=recursion,
-                    retries=retries, retries_pause=retries_pause)
+                dir_path_recursion = dir_path / name
+                if dir_path_recursion.exists() and dir_path_recursion.is_dir():
+                    # Recursion!
+                    create_file_structure(dir_path_recursion, no_update_md5=no_update_md5, recursion=recursion,
+                        retries=retries, retries_pause=retries_pause)
+                else:
+                    print('SKIP NON-EXISTENT DIR:', str(dir_path_recursion))
         file_structure[name] = None  # remove item from memory (for optimization)
 
 
-def read_file_and_calculate_md5(file_path: Path) -> (str, bool):
+def read_file_and_calculate_md5(file_path: Path) -> Tuple[str, bool]:
     """
     Calculate the MD5 hash of a file.
 
@@ -206,7 +214,7 @@ def read_file_and_calculate_md5(file_path: Path) -> (str, bool):
     return (md5_hash.hexdigest(), is_zero)
 
 
-def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pause: float) -> (str, bool):
+def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pause: float) -> Tuple[str, bool]:
     """
     Calculate the MD5 hash of a file with retry mechanism in case of PermissionError.
 
@@ -226,7 +234,7 @@ def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pau
                 attempt += 1
             else:
                 print(f"ERROR: {e.errno} - {e.strerror}")
-                return (False, False)
+                return ('', False)
                 # TODO: raise
 
 

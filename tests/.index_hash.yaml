@@ -1,0 +1,48 @@
+changed.csv:
+  ctime: 2023-10-03_22:08:37Z
+  md5: ad3f2a2bb2079a384df89158127a8cd4
+  mtime: 2024-06-10_16:32:03Z
+  size: 401
+  type: file
+deleted.csv:
+  ctime: 2023-09-28_21:20:18Z
+  md5: 9a4dbb4f3cf16f46a2e102b1127a1446
+  mtime: 2024-06-10_16:32:03Z
+  size: 106
+  type: file
+fs_struct_comparison_test.bat:
+  ctime: 2023-09-28_14:08:55Z
+  md5: c34ce1700e5187209d50f073d1a1e2c1
+  mtime: 2023-10-02_10:45:25Z
+  size: 95
+  type: file
+full_run.bat:
+  ctime: 2023-09-28_23:21:07Z
+  md5: b33e010ac7e9bd0f48839ccf34a7ee23
+  mtime: 2024-07-04_11:43:04Z
+  size: 240
+  type: file
+moved.csv:
+  ctime: 2023-09-28_21:20:18Z
+  md5: 9eba66424eb7180c9de30b34f97c0e98
+  mtime: 2023-10-24_08:36:06Z
+  size: 61
+  type: file
+new.csv:
+  ctime: 2023-10-04_04:15:28Z
+  md5: 37a93e4246105ac43beaca27b2576e60
+  mtime: 2024-06-10_16:32:03Z
+  size: 340
+  type: file
+test_initial_state.yaml:
+  ctime: 2023-09-28_13:50:00Z
+  md5: 4af066828e5f3d3d032111a4d76fb9ba
+  mtime: 2023-10-02_10:46:57Z
+  size: 332
+  type: file
+test_new_state.yaml:
+  ctime: 2023-09-28_13:50:00Z
+  md5: bcbdfc0f33bd69242342f25626ab972c
+  mtime: 2023-10-02_11:28:29Z
+  size: 336
+  type: file

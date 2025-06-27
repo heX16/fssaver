@@ -1,4 +1,61 @@
 
+
+
+# 2025-06 BUG
+
+```
+ignore: D:\heXor\Com\!SORT_SUPER_CHAOS\Projects2\AutoCranePLC\examples\ru-keys\.index_hash.yaml
+add: Example_MV110_8A_DCON_3511v1.projectarchive
+Traceback (most recent call last):
+  File "H:\Pyt\fssaver\fss_save.py", line 255, in <module>
+    main()
+    ~~~~^^
+  File "H:\Pyt\fssaver\fss_save.py", line 249, in main
+    create_file_structure(start_path, no_update_md5=no_update_md5, recursion=recursion, retries=retries, retries_pause=retries_pause)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 185, in create_file_structure
+    create_file_structure(dir_path_recursion, no_update_md5=no_update_md5, recursion=recursion,
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        retries=retries, retries_pause=retries_pause)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 185, in create_file_structure
+    create_file_structure(dir_path_recursion, no_update_md5=no_update_md5, recursion=recursion,
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        retries=retries, retries_pause=retries_pause)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 185, in create_file_structure
+    create_file_structure(dir_path_recursion, no_update_md5=no_update_md5, recursion=recursion,
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        retries=retries, retries_pause=retries_pause)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 3 more times]
+  File "H:\Pyt\fssaver\fss_save.py", line 154, in create_file_structure
+    file_structure[item.name] = update_record({}, item, no_update_md5, retries, retries_pause)
+                                ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 74, in update_record
+    ctime = time_to_iso8601_gmt_str(time_trim_ms(data.stat().st_ctime))
+  File "H:\Pyt\fssaver\fss_utils.py", line 114, in time_to_iso8601_gmt_str
+    return datetime.fromtimestamp(t, tz=timezone.utc).strftime(f'%Y-%m-%d{separator}%H:%M:%SZ')
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 22] Invalid argument
+```
+
+
+# TODO 2025-06 fss_create_apply_script.py
+
+мне кажется там есть проблема.
+допустим у нас было 2 файла с определенным md5 - в исходной версии (source).
+а в целевый папке (target) в той в которую мы делаем синхронизацию,
+там есть только 1 такой файл, и этот файл находится в другом месте.
+
+но при этом скрипт синхронизации обнаружит совпадения md5 и создаст 
+задачу на перемещение файла.
+поскольку файлов в source два, и требуется создать два файла,
+то скрипт создаст задачу на перемещение файла дважды.
+но разумеется только одна задача будет выполнена.
+вторая задача вернет ошибку, потомучто файл уже будет перемещенн.
+
+
 TODO 2025-06 HI PRIO
 =========
 
@@ -11,7 +68,10 @@ TODO 2025-06 HI PRIO
 а если директорию добавили - то скрипт ее не заметит.
 Но это моя теория - как оно в скрипте на самом деле я не помню, нужно проверять.
 
-
+UPD:
+Но, GPT сказал что алгоритмы в порядке.
+Как выясняется проблема в другом месте - в "слиянии" (merge).
+Это другой скрипт.
 
 
 

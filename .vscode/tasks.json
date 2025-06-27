@@ -1,0 +1,199 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "FSS: Save current directory structure",
+            "type": "shell",
+            "command": "python",
+            "args": ["fss_save.py", "."],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Save file structure of current directory to YAML files",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "FSS: Save directory structure (choose folder)",
+            "type": "shell",
+            "command": "python",
+            "args": ["fss_save.py", "${input:folderPath}"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Save file structure of selected directory to YAML files",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "FSS: Save with no recursion",
+            "type": "shell",
+            "command": "python",
+            "args": ["fss_save.py", ".", "--no-recursion"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Save only current directory structure (no subdirectories)",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "FSS: Merge structures to single file",
+            "type": "shell",
+            "command": "python",
+            "args": ["fss_merge.py", ".", "merged_structure.yaml"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Merge all .index_hash.yaml files into one merged_structure.yaml",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "FSS: Compare two structures",
+            "type": "shell",
+            "command": "python",
+            "args": ["fss_compare.py", "--old=${input:oldFile}", "--new=${input:newFile}"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Compare two YAML structure files and show differences",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "FSS: Convert to DiskDir format",
+            "type": "shell",
+            "command": "python",
+            "args": ["fss_to_diskdir.py", "${input:yamlFile}", "${input:outputFile}"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Convert YAML structure to DiskDir text format",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "FSS: Clean YAML attributes",
+            "type": "shell",
+            "command": "python",
+            "args": ["fss_yaml_clean.py", "${input:yamlFile}", "${input:outputFile}", "${input:attributesToRemove}"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Remove specified attributes from YAML structure file",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "FSS: Run tests",
+            "type": "shell",
+            "command": "python",
+            "args": ["test_fss_scripts.py"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Run all FSS tests",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "FSS: Run comparison test",
+            "type": "shell",
+            "command": "python",
+            "args": ["fss_run_comparison.py"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            },
+            "detail": "Run file structure comparison test",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "folderPath",
+            "description": "Enter folder path to scan",
+            "default": ".",
+            "type": "promptString"
+        },
+        {
+            "id": "oldFile",
+            "description": "Enter path to old YAML file",
+            "default": "old_structure.yaml",
+            "type": "promptString"
+        },
+        {
+            "id": "newFile", 
+            "description": "Enter path to new YAML file",
+            "default": "new_structure.yaml",
+            "type": "promptString"
+        },
+        {
+            "id": "yamlFile",
+            "description": "Enter path to YAML file",
+            "default": "structure.yaml",
+            "type": "promptString"
+        },
+        {
+            "id": "outputFile",
+            "description": "Enter output file path",
+            "default": "output.txt",
+            "type": "promptString"
+        },
+        {
+            "id": "attributesToRemove",
+            "description": "Enter attributes to remove (comma-separated)",
+            "default": "ctime,mtime",
+            "type": "promptString"
+        }
+    ]
+} 
