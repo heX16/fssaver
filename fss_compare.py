@@ -134,7 +134,7 @@ class FilesIndex:
         """
         Add a file to the index and detect duplicates.
 
-        This method normalizes the file data, generates keys for each index type,
+        This method normalizes the file info, generates keys for each index type,
         and adds the file to the appropriate indexes. If a duplicate is found
         (a file with the same key already exists in an index), it records the
         duplicate information and prints a warning.

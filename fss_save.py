@@ -232,8 +232,11 @@ def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pau
                 attempt += 1
             else:
                 print(f'ERROR: {e.errno} - {e.strerror}')
+                # TODO: raise?
                 return ('', False)
-                # TODO: raise
+    
+    # TODO: raise?
+    return ('', False)
 
 
 
