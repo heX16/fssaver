@@ -2,13 +2,14 @@
 File Structure to YAML, a separate file for each directory
 
 Usage:
-  fs_structure_to_yaml.py <start_directory> [--no-recursion] [--no-update-md5] [--retries=<retries>] [--retries-pause=<retries-pause>]
+  fs_structure_to_yaml.py <start_directory> [--no-recursion] [--no-update-md5] [--exif=<exif>] [--retries=<retries>] [--retries-pause=<retries-pause>]
   fs_structure_to_yaml.py -h | --help
 
 Options:
   -h --help        Show this help message and exit.
   --no-update-md5  Don't update MD5 if data changed
   --no-recursion   Do not recurse into directories.
+  --exif=<exif>    Enable EXIF extraction for JPG/JPEG files [default: 1]. Use 0/false/no/off to disable.
   --retries=<retries>     Number of retries for reading files [default: 1].
   --retries-pause=<retries-pause>         Pause duration between retries in seconds [default: 1].
 """
@@ -26,6 +27,7 @@ from fss_utils import *
 g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
 g_ignore_linux_hide_files = True
+g_exif_enabled = True
 
 
 def filter_dir(path: Path) -> bool:
@@ -113,6 +115,9 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
 
     r['ctime'] = time_to_iso8601_gmt_str(time_trim_ms(data_stat.st_ctime))
     r['mtime'] = time_to_iso8601_gmt_str(time_trim_ms(data_stat.st_mtime))
+    
+    add_extra_info_to_record(r, data)
+    
     return r
 
 
@@ -239,8 +244,23 @@ def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pau
     return ('', False)
 
 
+def add_extra_info_to_record(record: dict, path: Path) -> None:
+    global g_exif_enabled
+    
+    if not g_exif_enabled:
+        return
+    
+    if not path.is_file():
+        return
+    
+    ext = path.suffix.lower()
+    if ext in ('.jpg', '.jpeg'):
+        add_exif_info_to_record(record, path)
+
 
 def main():
+    global g_exif_enabled
+    
     arguments = docopt(__doc__)
 
     start_directory = arguments['<start_directory>']
@@ -249,6 +269,7 @@ def main():
     retries_pause = int(arguments['--retries-pause'])
     start_path = Path(start_directory)
     no_update_md5 = bool(arguments['--no-update-md5'])
+    g_exif_enabled = arguments.get('--exif', '1') != '0'
 
     if start_path.exists() and start_path.is_dir():
         create_file_structure(start_path, no_update_md5=no_update_md5, recursion=recursion, retries=retries, retries_pause=retries_pause)

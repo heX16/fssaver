@@ -17,6 +17,11 @@ class TestFSSScripts(unittest.TestCase):
         subdir = self.test_dir / 'subdir'
         subdir.mkdir()
         (subdir / 'file3.txt').write_text('Content of file3')
+        
+        # Copy test_exif.jpg from tests/ directory if it exists
+        test_exif_source = Path('tests/test_exif.jpg')
+        if test_exif_source.exists():
+            shutil.copy2(test_exif_source, self.test_dir / 'test_exif.jpg')
     
     def tearDown(self):
         # Remove temporary directory after tests
@@ -147,6 +152,50 @@ class TestFSSScripts(unittest.TestCase):
         self.assertIn('file1.txt', output, 'file1.txt should be listed as deleted')
         self.assertIn('New files', output, 'New files section not found in compare output')
         self.assertIn('file5.txt', output, 'file5.txt should be listed as new')
+    
+    def test_fss_save_exif_enabled(self):
+        # Test EXIF extraction is enabled by default
+        test_exif_source = Path('tests/test_exif.jpg')
+        if not test_exif_source.exists():
+            self.skipTest('test_exif.jpg not found in tests/ directory')
+        
+        # Run fss_save.py with default settings (EXIF enabled)
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+        
+        # Check that .index_hash.yaml file is created
+        index_file = self.test_dir / '.index_hash.yaml'
+        self.assertTrue(index_file.exists(), 'Index file not created in test directory')
+        
+        # Load and check contents
+        with index_file.open('r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        
+        # Check that test_exif.jpg has EXIF datetime field
+        if 'test_exif.jpg' in data:
+            self.assertIn('exif_datetime_original', data['test_exif.jpg'], 
+                        'EXIF datetime_original field should be present when EXIF is enabled')
+    
+    def test_fss_save_exif_disabled(self):
+        # Test EXIF extraction can be disabled
+        test_exif_source = Path('tests/test_exif.jpg')
+        if not test_exif_source.exists():
+            self.skipTest('test_exif.jpg not found in tests/ directory')
+        
+        # Run fss_save.py with EXIF disabled
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir), '--exif=0'], check=True)
+        
+        # Check that .index_hash.yaml file is created
+        index_file = self.test_dir / '.index_hash.yaml'
+        self.assertTrue(index_file.exists(), 'Index file not created in test directory')
+        
+        # Load and check contents
+        with index_file.open('r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        
+        # Check that test_exif.jpg does NOT have EXIF datetime field
+        if 'test_exif.jpg' in data:
+            self.assertNotIn('exif_datetime_original', data['test_exif.jpg'], 
+                           'EXIF datetime_original field should NOT be present when EXIF is disabled')
     
 if __name__ == '__main__':
     unittest.main()

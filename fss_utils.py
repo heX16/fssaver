@@ -305,3 +305,52 @@ def save_result_and_print_info(changed_files, moved_files, deleted_files, new_fi
 
     duplicate_headers = ['Source File', 'Duplicate File', 'Match Type', 'Size', 'MD5 Hash']
     save_csv_file_list_or_print('Duplicate files', duplicate_files, 'duplicates.csv', duplicate_headers)
+
+
+def add_exif_info_to_record(record: dict, jpg_path: Path) -> None:
+    from PIL import Image
+    from PIL.ExifTags import TAGS
+    
+    try:
+        with Image.open(jpg_path) as img:
+            # Try getexif() first (Pillow 8.0+), fallback to _getexif() for older versions
+            exif_data = None
+            if hasattr(img, 'getexif'):
+                exif_data = img.getexif()
+            elif hasattr(img, '_getexif'):
+                exif_data = img._getexif()
+            
+            if exif_data is None:
+                dict_del_item(record, 'exif_datetime_original')
+                return
+            
+            # Try to find DateTimeOriginal, DateTimeDigitized, or DateTime
+            # Tag IDs: 306=DateTime, 36867=DateTimeOriginal, 36868=DateTimeDigitized
+            datetime_value = None
+            
+            # Handle Exif object (Pillow 8.0+) or dict (older versions)
+            if hasattr(exif_data, 'get'):
+                # Exif object (Pillow 8.0+)
+                datetime_value = exif_data.get(36867)  # DateTimeOriginal
+                if not datetime_value:
+                    datetime_value = exif_data.get(36868)  # DateTimeDigitized
+                if not datetime_value:
+                    datetime_value = exif_data.get(306)  # DateTime
+            else:
+                # Dict (older Pillow versions)
+                for tag_id, value in exif_data.items():
+                    tag = TAGS.get(tag_id, tag_id)
+                    if tag == 'DateTimeOriginal':
+                        datetime_value = value
+                        break
+                    elif tag == 'DateTimeDigitized' and datetime_value is None:
+                        datetime_value = value
+                    elif tag == 'DateTime' and datetime_value is None:
+                        datetime_value = value
+            
+            if datetime_value:
+                record['exif_datetime_original'] = datetime_value
+            else:
+                dict_del_item(record, 'exif_datetime_original')
+    except Exception:
+        dict_del_item(record, 'exif_datetime_original')
