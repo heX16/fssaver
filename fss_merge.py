@@ -18,26 +18,37 @@ Options:
 import yaml
 from pathlib import Path
 from docopt import docopt
-import datetime
+from datetime import datetime
 import time
 from fss_utils import *
 
 g_yaml_name = '.index_hash.yaml'
 
 
-def add_data_to_merged_data(merged_data: dict, file_data: dict, file_name: str, root_path: Path, retries: int, retries_pause: int):
-    full_path = Path(file_name)
+def add_data_to_merged_data(
+    merged_data: dict,
+    file_data: dict,
+    file_name: str,
+    base_dir: Path,
+    root_path: Path,
+    retries: int,
+    retries_pause: int,
+):
+    entry_path = Path(file_name)
 
-    if full_path.is_absolute():
-        relative_path = full_path.relative_to(root_path)
+    # Resolve absolute path of the entry based on where the current .index_hash.yaml lives.
+    if entry_path.is_absolute():
+        abs_entry_path = entry_path
     else:
-        relative_path = full_path
+        abs_entry_path = base_dir / entry_path
 
-    merged_data[str(relative_path)] = file_data
+    # Store keys as paths relative to the start directory.
+    relative_path = abs_entry_path.relative_to(root_path)
+    merged_data[relative_path.as_posix()] = file_data
 
     if file_data['type'] == 'dir':
         # Recursively process the contents of the directory
-        sub_index_file = full_path / g_yaml_name
+        sub_index_file = abs_entry_path / g_yaml_name
         sub_data = merge_contents(sub_index_file, retries, retries_pause, root_path)
         merged_data.update(sub_data)
 
@@ -61,12 +72,14 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int, r
         }
         return merged_data
 
+    base_dir = path_to_index_hash.parent
+
     # TODO: use `fss_utils.load_yaml_fss_file_stream`
     index_data = load_yaml(path_to_index_hash, retries=retries, retries_pause=retries_pause)
 
     if index_data is not None:
         for file_name, file_data in index_data.items():
-            add_data_to_merged_data(merged_data, file_data, file_name, root_path, retries, retries_pause)
+            add_data_to_merged_data(merged_data, file_data, file_name, base_dir, root_path, retries, retries_pause)
 
     return merged_data
 
@@ -76,7 +89,6 @@ def main():
     arguments = docopt(__doc__)
 
     start_directory = Path(arguments['<start_directory>'])
-    yaml_file = Path(arguments['--file'] or 'index_hash_all.yaml')
     retries = int(arguments['--retries'] or 1)
     retries_pause = int(arguments['--retries-pause'] or 1)
 
@@ -85,8 +97,14 @@ def main():
         retries, retries_pause,
         start_directory)
 
-    if not yaml_file.is_absolute():
-        yaml_file = start_directory / yaml_file
+    yaml_file_arg = arguments['--file']
+    if yaml_file_arg:
+        yaml_file = Path(yaml_file_arg)
+        # If the user passed only a filename (no directory), put it into start_directory.
+        if not yaml_file.is_absolute() and yaml_file.parent == Path('.'):
+            yaml_file = start_directory / yaml_file
+    else:
+        yaml_file = start_directory / 'index_hash_all.yaml'
 
     # Check if the '--not-add-date' option is present
     if not arguments['--not-add-date']:

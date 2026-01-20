@@ -4,6 +4,8 @@ import os
 import shutil
 import yaml
 from pathlib import Path
+from datetime import datetime
+import tempfile
 
 class TestFSSScripts(unittest.TestCase):
     def setUp(self):
@@ -79,48 +81,81 @@ class TestFSSScripts(unittest.TestCase):
         ]
         for path in expected_paths:
             self.assertIn(path, data, f'{path} not found in merged file')
+
+    def test_fss_merge_file_arg_variants(self):
+        # First, run fss_save.py
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+
+        # Variant 1: --file is only a filename -> should be created inside start directory
+        merged_file1 = self.test_dir / 'merged_name_only.yaml'
+        subprocess.run(['python', 'fss_merge.py', str(self.test_dir), '--file', 'merged_name_only.yaml', '--not-add-date'], check=True)
+        self.assertTrue(merged_file1.exists(), 'Merged file (name-only) not created inside start directory')
+
+        # Variant 2: --file includes directory -> should not duplicate start directory
+        merged_file2 = self.test_dir / 'merged_with_dir.yaml'
+        subprocess.run(['python', 'fss_merge.py', str(self.test_dir), '--file', str(merged_file2), '--not-add-date'], check=True)
+        self.assertTrue(merged_file2.exists(), 'Merged file (with dir) not created')
+
+    def test_fss_merge_add_date_default(self):
+        # Covers the default behavior (no --not-add-date): file name gets date suffix
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+
+        expected_date = datetime.now().strftime('%Y-%m-%d')
+        base_name = 'merged_dated.yaml'
+        expected_file = self.test_dir / f'merged_dated_{expected_date}.yaml'
+
+        subprocess.run(['python', 'fss_merge.py', str(self.test_dir), '--file', base_name], check=True)
+        self.assertTrue(expected_file.exists(), 'Merged file with date suffix not created')
     
     def test_fss_compare(self):
-        # First, create two versions of the directory
-        version1 = self.test_dir / 'version1'
-        version2 = self.test_dir / 'version2'
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            version1 = tmp_path / 'version1'
+            version2 = tmp_path / 'version2'
+            out_dir = tmp_path / 'out'
+            out_dir.mkdir()
 
-        shutil.copytree(self.test_dir, version1)
-        shutil.copytree(self.test_dir, version2)
+            shutil.copytree(self.test_dir, version1)
+            shutil.copytree(self.test_dir, version2)
 
-        # Modify version2
-        (version2 / 'file2.txt').write_text('Modified content of file2')
-        (version2 / 'file4.txt').write_text('Content of new file4')
-        os.remove(version2 / 'file1.txt')
+            # Modify version2
+            (version2 / 'file2.txt').write_text('Modified content of file2')
+            (version2 / 'file4.txt').write_text('Content of new file4')
+            os.remove(version2 / 'file1.txt')
 
-        # Run fss_save.py on both versions
-        subprocess.run(['python', 'fss_save.py', str(version1)], check=True)
-        subprocess.run(['python', 'fss_save.py', str(version2)], check=True)
+            # Run fss_save.py on both versions
+            subprocess.run(['python', 'fss_save.py', str(version1)], check=True)
+            subprocess.run(['python', 'fss_save.py', str(version2)], check=True)
 
-        # Run fss_merge.py on both versions to create merged files
-        merged_file1 = version1 / 'merged.yaml'
-        merged_file2 = version2 / 'merged.yaml'
-        subprocess.run(['python', 'fss_merge.py', str(version1), '--file', str(merged_file1), '--not-add-date'], check=True)
-        subprocess.run(['python', 'fss_merge.py', str(version2), '--file', str(merged_file2), '--not-add-date'], check=True)
+            # Run fss_merge.py on both versions to create merged files
+            merged_file1 = version1 / 'merged.yaml'
+            merged_file2 = version2 / 'merged.yaml'
+            subprocess.run(['python', 'fss_merge.py', str(version1), '--file', str(merged_file1), '--not-add-date'], check=True)
+            subprocess.run(['python', 'fss_merge.py', str(version2), '--file', str(merged_file2), '--not-add-date'], check=True)
 
-        # Run fss_compare.py
-        compare_output = subprocess.run(['python', 'fss_compare.py', str(merged_file1), str(merged_file2)], capture_output=True, text=True)
+            # Run fss_compare.py (strict args: --old/--new)
+            compare_script = str(Path('fss_compare.py').resolve())
+            compare_output = subprocess.run(
+                ['python', compare_script, f'--old={merged_file1}', f'--new={merged_file2}'],
+                cwd=str(out_dir),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            # Print output for debugging
+            print(compare_output.stdout)
 
-        # Check the output for expected changes
-        output = compare_output.stdout
-        # Print output for debugging
-        print(output)
+            changed_csv = out_dir / 'changed.csv'
+            deleted_csv = out_dir / 'deleted.csv'
+            new_csv = out_dir / 'new.csv'
 
-        self.assertIn('Changed files', output, 'Changed files section not found in compare output')
-        self.assertIn('file2.txt', output, 'file2.txt should be listed as changed')
-        self.assertIn('Deleted files', output, 'Deleted files section not found in compare output')
-        self.assertIn('file1.txt', output, 'file1.txt should be listed as deleted')
-        self.assertIn('New files', output, 'New files section not found in compare output')
-        self.assertIn('file4.txt', output, 'file4.txt should be listed as new')
+            self.assertTrue(changed_csv.exists(), 'changed.csv not created')
+            self.assertTrue(deleted_csv.exists(), 'deleted.csv not created')
+            self.assertTrue(new_csv.exists(), 'new.csv not created')
 
-        # Cleanup
-        shutil.rmtree(version1)
-        shutil.rmtree(version2)
+            self.assertIn('file2.txt', changed_csv.read_text(encoding='utf-8'), 'file2.txt should be listed in changed.csv')
+            self.assertIn('file1.txt', deleted_csv.read_text(encoding='utf-8'), 'file1.txt should be listed in deleted.csv')
+            self.assertIn('file4.txt', new_csv.read_text(encoding='utf-8'), 'file4.txt should be listed in new.csv')
     
     def test_fss_compare_with_modifications(self):
         # Run initial fss_save and fss_merge
@@ -138,20 +173,32 @@ class TestFSSScripts(unittest.TestCase):
         merged_file_new = self.test_dir / 'merged_new.yaml'
         subprocess.run(['python', 'fss_merge.py', str(self.test_dir), '--file', str(merged_file_new), '--not-add-date'], check=True)
 
-        # Compare the two merged files
-        compare_output = subprocess.run(['python', 'fss_compare.py', str(merged_file_initial), str(merged_file_new)], capture_output=True, text=True)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_dir = Path(tmp_dir)
 
-        # Check the output for expected changes
-        output = compare_output.stdout
-        # Print output for debugging
-        print(output)
+            # Compare the two merged files (strict args: --old/--new)
+            compare_script = str(Path('fss_compare.py').resolve())
+            compare_output = subprocess.run(
+                ['python', compare_script, f'--old={merged_file_initial.resolve()}', f'--new={merged_file_new.resolve()}'],
+                cwd=str(out_dir),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            # Print output for debugging
+            print(compare_output.stdout)
 
-        self.assertIn('Changed files', output, 'Changed files section not found in compare output')
-        self.assertIn('file2.txt', output, 'file2.txt should be listed as changed')
-        self.assertIn('Deleted files', output, 'Deleted files section not found in compare output')
-        self.assertIn('file1.txt', output, 'file1.txt should be listed as deleted')
-        self.assertIn('New files', output, 'New files section not found in compare output')
-        self.assertIn('file5.txt', output, 'file5.txt should be listed as new')
+            changed_csv = out_dir / 'changed.csv'
+            deleted_csv = out_dir / 'deleted.csv'
+            new_csv = out_dir / 'new.csv'
+
+            self.assertTrue(changed_csv.exists(), 'changed.csv not created')
+            self.assertTrue(deleted_csv.exists(), 'deleted.csv not created')
+            self.assertTrue(new_csv.exists(), 'new.csv not created')
+
+            self.assertIn('file2.txt', changed_csv.read_text(encoding='utf-8'), 'file2.txt should be listed in changed.csv')
+            self.assertIn('file1.txt', deleted_csv.read_text(encoding='utf-8'), 'file1.txt should be listed in deleted.csv')
+            self.assertIn('file5.txt', new_csv.read_text(encoding='utf-8'), 'file5.txt should be listed in new.csv')
     
     def test_fss_save_exif_enabled(self):
         # Test EXIF extraction is enabled by default
