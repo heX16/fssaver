@@ -1,4 +1,14 @@
 
+
+# warn во время merge
+```
+FSS MERGE:
+
+H:\Pyt\fssaver>python fss_merge.py "Q:\struct\Natasha" --file=index_hash.yaml
+WARN: folder not found:  2024-03-08 _______\.index_hash.yaml
+WARN: folder not found:  2024-04-05 ______ _____\.index_hash.yaml
+```
+
 # почемуто не правильно работает рекурсия при сохранении
 
 ```
