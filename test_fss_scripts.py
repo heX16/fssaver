@@ -219,7 +219,7 @@ class TestFSSScripts(unittest.TestCase):
         
         # Check that test_exif.jpg has EXIF datetime field
         if 'test_exif.jpg' in data:
-            self.assertIn('exif_datetime_original', data['test_exif.jpg'], 
+            self.assertIn('ctime_exif', data['test_exif.jpg'], 
                         'EXIF datetime_original field should be present when EXIF is enabled')
     
     def test_fss_save_exif_disabled(self):
@@ -241,7 +241,7 @@ class TestFSSScripts(unittest.TestCase):
         
         # Check that test_exif.jpg does NOT have EXIF datetime field
         if 'test_exif.jpg' in data:
-            self.assertNotIn('exif_datetime_original', data['test_exif.jpg'], 
+            self.assertNotIn('ctime_exif', data['test_exif.jpg'], 
                            'EXIF datetime_original field should NOT be present when EXIF is disabled')
     
 if __name__ == '__main__':

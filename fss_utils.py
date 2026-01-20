@@ -321,7 +321,7 @@ def add_exif_info_to_record(record: dict, jpg_path: Path) -> None:
                 exif_data = img._getexif()
             
             if exif_data is None:
-                dict_del_item(record, 'exif_datetime_original')
+                dict_del_item(record, 'ctime_exif')
                 return
             
             # Try to find DateTimeOriginal, DateTimeDigitized, or DateTime
@@ -349,8 +349,8 @@ def add_exif_info_to_record(record: dict, jpg_path: Path) -> None:
                         datetime_value = value
             
             if datetime_value:
-                record['exif_datetime_original'] = datetime_value
+                record['ctime_exif'] = datetime_value
             else:
-                dict_del_item(record, 'exif_datetime_original')
+                dict_del_item(record, 'ctime_exif')
     except Exception:
-        dict_del_item(record, 'exif_datetime_original')
+        dict_del_item(record, 'ctime_exif')
