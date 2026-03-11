@@ -11,6 +11,11 @@ import time
 import typing
 import traceback
 
+try:
+    import PIL
+except ImportError:
+    PIL = None
+
 
 def is_wnd() -> bool:
     """Check if the operating system is Windows."""
@@ -308,11 +313,13 @@ def save_result_and_print_info(changed_files, moved_files, deleted_files, new_fi
 
 
 def add_exif_info_to_record(record: dict, jpg_path: Path) -> None:
-    from PIL import Image
-    from PIL.ExifTags import TAGS
-    
+    """Add EXIF datetime to record if PIL (Pillow) is installed; otherwise remove ctime_exif."""
+    if PIL is None:
+        dict_del_item(record, 'ctime_exif')
+        return
+
     try:
-        with Image.open(jpg_path) as img:
+        with PIL.Image.open(jpg_path) as img:
             # Try getexif() first (Pillow 8.0+), fallback to _getexif() for older versions
             exif_data = None
             if hasattr(img, 'getexif'):
@@ -339,7 +346,7 @@ def add_exif_info_to_record(record: dict, jpg_path: Path) -> None:
             else:
                 # Dict (older Pillow versions)
                 for tag_id, value in exif_data.items():
-                    tag = TAGS.get(tag_id, tag_id)
+                    tag = PIL.ExifTags.TAGS.get(tag_id, tag_id)
                     if tag == 'DateTimeOriginal':
                         datetime_value = value
                         break
