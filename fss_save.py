@@ -115,6 +115,33 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
 
     r['ctime'] = time_to_iso8601_gmt_str(time_trim_ms(data_stat.st_ctime))
     r['mtime'] = time_to_iso8601_gmt_str(time_trim_ms(data_stat.st_mtime))
+
+    # Linux-specific attributes: permissions (mod) and owner (own)
+    if is_linux():
+        # Permissions as a 3-digit octal string, e.g. '755'
+        try:
+            r['mod'] = f'{data_stat.st_mode & 0o777:03o}'
+        except Exception:
+            dict_del_item(r, 'mod')
+
+        # Owner in format 'user:group', resolving names when possible
+        try:
+            import pwd
+            import grp
+
+            try:
+                user = pwd.getpwuid(data_stat.st_uid).pw_name
+            except KeyError:
+                user = str(data_stat.st_uid)
+
+            try:
+                group = grp.getgrgid(data_stat.st_gid).gr_name
+            except KeyError:
+                group = str(data_stat.st_gid)
+
+            r['own'] = f'{user}:{group}'
+        except Exception:
+            dict_del_item(r, 'own')
     
     add_extra_info_to_record(r, data)
     
