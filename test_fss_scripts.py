@@ -243,6 +243,114 @@ class TestFSSScripts(unittest.TestCase):
         if 'test_exif.jpg' in data:
             self.assertNotIn('ctime_exif', data['test_exif.jpg'], 
                            'EXIF datetime_original field should NOT be present when EXIF is disabled')
-    
+
+    def test_fss_check_single_index_ok(self):
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+        check_script = str(Path('fss_check.py').resolve())
+        index_path = self.test_dir / '.index_hash.yaml'
+        r = subprocess.run(
+            ['python', check_script, f'--fss={index_path}'],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(r.stdout.strip(), '')
+
+    def test_fss_check_merged_with_snapshot_base_ok(self):
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+        merged_file = self.test_dir / 'merged_for_check.yaml'
+        subprocess.run(
+            ['python', 'fss_merge.py', str(self.test_dir), '--file', str(merged_file), '--not-add-date'],
+            check=True,
+        )
+        check_script = str(Path('fss_check.py').resolve())
+        r = subprocess.run(
+            ['python', check_script, f'--fss={merged_file}', f'--snapshot-base={self.test_dir}'],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(r.stdout.strip(), '')
+
+    def test_fss_check_merged_with_fssdir_alias_ok(self):
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+        merged_file = self.test_dir / 'merged_fssdir_alias.yaml'
+        subprocess.run(
+            ['python', 'fss_merge.py', str(self.test_dir), '--file', str(merged_file), '--not-add-date'],
+            check=True,
+        )
+        check_script = str(Path('fss_check.py').resolve())
+        r = subprocess.run(
+            ['python', check_script, f'--fss={merged_file}', f'--fssdir={self.test_dir}'],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(r.stdout.strip(), '')
+
+    def test_fss_check_merged_requires_snapshot_base(self):
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+        merged_file = self.test_dir / 'merged_need_root.yaml'
+        subprocess.run(
+            ['python', 'fss_merge.py', str(self.test_dir), '--file', str(merged_file), '--not-add-date'],
+            check=True,
+        )
+        check_script = str(Path('fss_check.py').resolve())
+        r = subprocess.run(
+            ['python', check_script, f'--fss={merged_file}'],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn('--snapshot-base', r.stdout)
+        self.assertIn('--fssdir', r.stdout)
+
+    def test_fss_check_dir_detects_md5_mismatch(self):
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+        (self.test_dir / 'file1.txt').write_text('corrupted content')
+        check_script = str(Path('fss_check.py').resolve())
+        r = subprocess.run(
+            ['python', check_script, f'--dir={self.test_dir}'],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn('MD5_MISMATCH', r.stdout)
+        self.assertIn('file1.txt', r.stdout)
+
+    def test_fss_check_skip_not_available_missing_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            idx = root / 'idx.yaml'
+            idx.write_text(
+                '"only_missing.bin":\n'
+                '  type: file\n'
+                '  md5: abcdabcdabcdabcdabcdabcdabcdabcd\n'
+                '  size: 999\n',
+                encoding='utf-8',
+            )
+            check_script = str(Path('fss_check.py').resolve())
+            r1 = subprocess.run(
+                ['python', check_script, f'--fss={idx}', f'--snapshot-base={root}'],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(r1.returncode, 1, r1.stdout + r1.stderr)
+            self.assertIn('MISSING', r1.stdout)
+
+            r2 = subprocess.run(
+                [
+                    'python',
+                    check_script,
+                    f'--fss={idx}',
+                    f'--snapshot-base={root}',
+                    '--skip-not-available',
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(r2.returncode, 0, r2.stdout + r2.stderr)
+            self.assertEqual(r2.stdout.strip(), '')
+
 if __name__ == '__main__':
     unittest.main()
