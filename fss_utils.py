@@ -1,5 +1,6 @@
 import yaml
 import csv
+from tqdm import tqdm
 from collections.abc import Iterator
 from pathlib import Path
 from datetime import datetime
@@ -220,6 +221,41 @@ def load_yaml_fss_file_stream(yaml_file: Path, process_item_func: typing.Callabl
 
 
 SKIP_TYPES = frozenset({'error', 'hardcoded_skip', 'unknown'})
+
+
+def count_matching_files_with_topdir_progress(
+    root: Path,
+    basename: str,
+    *,
+    progress_stream,
+) -> int:
+    """
+    Match count under ``root`` for ``basename`` (``rglob`` total; tqdm one step per top-level subdir).
+
+    ``root``: Directory to search.
+
+    ``basename``: The file name whose count is computed.
+
+    ``progress_stream``: Stdio stream tqdm renders the progress bar to.
+    """
+    dirs_in_root = [p for p in root.iterdir() if p.is_dir()]
+
+    if (root / basename).is_file():
+        n = 1
+    else:
+        n = 0
+
+    with tqdm(
+        total=len(dirs_in_root),
+        unit='dir',
+        desc='Counting indexes',
+        file=progress_stream,
+        leave=False,
+    ) as pbar:
+        for d in dirs_in_root:
+            n += sum(1 for _ in d.rglob(basename))
+            pbar.update(1)
+    return n
 
 
 def iter_index_file_entries(data: dict) -> Iterator[tuple[str, dict, str]]:

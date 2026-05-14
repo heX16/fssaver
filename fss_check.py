@@ -37,45 +37,10 @@ from pathlib import Path
 from docopt import docopt
 from tqdm import tqdm
 
-from fss_utils import iter_index_file_entries, load_yaml
+from fss_utils import count_matching_files_with_topdir_progress, iter_index_file_entries, load_yaml
 from fss_save import read_file_and_calculate_md5_retry
 
 g_yaml_name = '.index_hash.yaml'
-
-
-def count_matching_files_with_topdir_progress(
-    root: Path,
-    basename: str,
-    *,
-    progress_stream,
-) -> int:
-    """
-    Match count under ``root`` for ``basename`` (``rglob`` total; tqdm one step per top-level subdir).
-
-    ``root``: Directory to search.
-
-    ``basename``: The file name whose count is computed.
-
-    ``progress_stream``: Stdio stream tqdm renders the progress bar to.
-    """
-    dirs_in_root = [p for p in root.iterdir() if p.is_dir()]
-
-    if (root / basename).is_file():
-        n = 1
-    else:
-        n = 0
-
-    with tqdm(
-        total=len(dirs_in_root),
-        unit='dir',
-        desc='Counting indexes',
-        file=progress_stream,
-        leave=False,
-    ) as pbar:
-        for d in dirs_in_root:
-            n += sum(1 for _ in d.rglob(basename))
-            pbar.update(1)
-    return n
 
 
 def resolve_disk_path(key: str, base_dir: Path) -> Path:
