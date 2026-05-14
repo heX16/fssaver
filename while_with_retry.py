@@ -1,31 +1,73 @@
 """
-Retry transient I/O errors with a ``while`` + ``with`` session: :class:`WhileWithRetry`.
+Retry transient failures with a structured ``while`` + ``with`` session: :class:`WhileWithRetry`.
 
-The session runs until the body inside ``with r.attempt():`` finishes without raising, or
-until a non-retryable exception propagates, or until retryable exceptions exceed the
-configured ``retries`` (same counting style as ``fss_utils.load_yaml``: ``retries`` is the
-number of *extra* attempts after the first try).
+This module provides a small retry engine intended for I/O-like operations, where you want:
 
-The built-in retry path does not log; pass ``on_exception`` and handle decisions from
-:meth:`WhileWithRetry.proc_exception` (internally ``on_exception(r, exc)``) if you want messages or
-structured logging before returning a decision (see table below).
+- a bounded number of retries,
+- a clean separation between "do the work" (the ``with`` body) and "handle failures",
+- explicit session state (``outcome``, ``error``, ``last_exception``),
+- optional hooks (retry decision, logging/telemetry, and final failure handling).
 
-``on_exception(r, exc)`` must return ``True`` or ``False``. Only ``True`` is handled specially (see
-table); any other return value delegates like ``False``.
+The basic usage pattern is always::
 
-| Return | Typical meaning | Session ``outcome`` | Exception escapes ``with`` |
-|--------|-----------------|---------------------|------------------------------|
-| ``True`` | Stop immediately as ``failed``, record ``r.error``, do not re-raise | ``failed`` | No (suppressed) |
-| ``False`` | Delegate to :meth:`WhileWithRetry.is_retry` (``on_is_retry`` if set, else ``retry_on``) | Same as built-in path | Yes if not retryable or budget exhausted |
+    r = WhileWithRetry(...)
+    while r:
+        with r.attempt():
+            ... do one attempt ...
 
-Example — read a file text, sleeping between ``OSError`` retries::
+After the loop:
+
+- if ``r.outcome == 'ok'``: the body has completed without raising and the session is finished;
+- if ``r.outcome == 'failed'``: the session ended due to an exception; ``r.error`` is set.
+
+Retry budget / counting
+----------------------
+
+``retries`` is the number of *extra* attempts after the first try (same idea as
+``range(retries + 1)``). For example, ``retries=2`` allows up to 3 total attempts.
+
+Which exceptions are retryable
+------------------------------
+
+By default, **nothing is retryable** (``exc_retry_list`` is empty and ``on_is_retry`` is unset).
+To enable retries, either:
+
+- pass ``exc_retry_list=(SomeError, ...)`` for type-based retries, or
+- pass ``on_is_retry(r, exc) -> bool`` for a custom decision function, or
+- override :meth:`WhileWithRetry.is_retry` in a subclass.
+
+If an exception is not retryable, it is recorded as failure and **propagates** out of the
+``with`` block (i.e. it is not swallowed).
+
+Hooks and control flow
+----------------------
+
+The engine calls (in order) :meth:`WhileWithRetry.proc_exception`, :meth:`WhileWithRetry.is_retry`,
+and then either :meth:`WhileWithRetry.proc_retry` (retry scheduled) or
+:meth:`WhileWithRetry.proc_fail` (final failure).
+
+``on_exception(r, exc) -> bool`` is an optional early override. If it returns ``True``, the session
+ends immediately as failed (``r.error`` is set) and the exception is **suppressed** by ``__exit__``.
+If it returns ``False`` (or any non-``True`` value), the engine proceeds with normal retry logic.
+
+``on_retry(r)`` runs once per scheduled retry (before the inter-attempt sleep). Use
+``r.last_exception`` if you need the exception instance.
+
+``on_fail(r, exc)`` runs once when the session enters the final ``outcome == 'failed'`` state.
+``r.error`` is set to ``exc`` before the callback runs.
+
+Examples
+--------
+
+Retry reading a file on ``OSError``, sleeping between attempts::
 
     from pathlib import Path
     from while_with_retry import WhileWithRetry
 
     path = Path('data.txt')
-    r = WhileWithRetry(retries=2, pause_sec=1.0, retry_on=(OSError,))
+    r = WhileWithRetry(retries=2, pause_sec=1.0, exc_retry_list=(OSError,))
     text = None
+
     while r:
         with r.attempt():
             text = path.read_text(encoding='utf-8')
@@ -33,18 +75,19 @@ Example — read a file text, sleeping between ``OSError`` retries::
     if r.outcome != 'ok':
         raise r.error
 
-Non-retryable errors (e.g. :meth:`WhileWithRetry.is_retry` is ``False`` for ``exc``) are not
-swallowed: they end the session with ``outcome == 'failed'`` and propagate out of ``__exit__``
-after recording ``r.error``. The same end state without propagating is selected when
-:meth:`WhileWithRetry.proc_exception` reports the ``on_exception`` callback returned ``True``.
+Use ``on_is_retry`` instead of ``exc_retry_list``::
 
-Optional ``on_retry`` / ``on_fail`` are invoked from :meth:`WhileWithRetry.proc_retry` and
-:meth:`WhileWithRetry.proc_fail`. ``on_retry(r)`` runs once each time the session schedules
-another attempt (before the inter-attempt ``pause_sec`` sleep). Use ``r.last_exception`` inside
-the callback if you need the exception instance (``on_retry`` only receives ``r``).
-``on_fail(r, exc)`` runs once when the session enters the final ``outcome == 'failed'`` state
-(including non-retryable errors and exhausted retry budget); ``r.error`` is set to ``exc`` before
-``on_fail`` runs.
+    def is_transient(r: WhileWithRetry, exc: BaseException) -> bool:
+        return isinstance(exc, OSError)
+
+    r = WhileWithRetry(retries=3, pause_sec=0.2, on_is_retry=is_transient)
+
+Abort and suppress a specific exception via ``on_exception``::
+
+    def stop_on_value_error(r: WhileWithRetry, exc: BaseException) -> bool:
+        return isinstance(exc, ValueError)
+
+    r = WhileWithRetry(retries=2, exc_retry_list=(OSError,), on_exception=stop_on_value_error)
 """
 
 from __future__ import annotations
@@ -57,67 +100,26 @@ from dataclasses import dataclass, field
 @dataclass
 class WhileWithRetry:
     """
-    Coordinate ``while self:`` with ``with self.attempt():`` for bounded I/O retries.
+    Coordinate ``while self:`` with ``with self.attempt():`` for bounded retries.
 
-    ``retries`` is the number of *extra* attempts after the first try (same idea as
-    ``range(retries + 1)`` in ``fss_utils.load_yaml``).
+    See the module docstring for the full usage guide, hook semantics, and examples.
 
-    The engine calls :meth:`proc_exception`, :meth:`is_retry`, :meth:`proc_retry`, and
-    :meth:`proc_fail`; those methods forward to optional ``on_exception``, ``on_is_retry``,
-    ``on_retry``, and ``on_fail`` callbacks respectively.
+    Quick example::
 
-    ``on_exception(r, exc)`` is used from :meth:`proc_exception`; it must return ``True`` (end as
-    ``failed``, suppress the exception) or ``False`` (use :meth:`is_retry` and counting). Use
-    ``on_retry`` / ``on_fail`` for logging (via :meth:`proc_retry` / :meth:`proc_fail`).
-
-    ``on_retry(r)`` runs for each scheduled retry (before ``pause_sec``). ``last_exception`` is
-    the exception currently being handled (set before :meth:`proc_retry` / :meth:`proc_fail`).
-    ``on_fail(r, exc)`` runs when the session ends as ``failed`` (``r.error`` is set to ``exc``
-    beforehand).
-
-    Example — same pattern as the module docstring, with explicit outcome handling::
-
-        r = WhileWithRetry(retries=3, pause_sec=0.5, retry_on=(OSError,))
-        result = None
+        r = WhileWithRetry(retries=2, pause_sec=0.5, exc_retry_list=(OSError,))
+        data = None
         while r:
             with r.attempt():
                 with open(path, 'rb') as f:
-                    result = f.read(1024)
+                    data = f.read()
 
         if r.outcome != 'ok':
             raise r.error
-
-    ``on_is_retry(r, exc)`` — optional functional counterpart to ``retry_on`` (if set, it replaces
-    the tuple check for whether the exception is retryable). Return ``True`` to take a retry
-    step (still bounded by ``retries``), ``False`` to end the session as failed and re-raise.
-
-    Example — custom handler (abort the ``with`` body without propagating on a specific error)::
-
-        def decide(r: WhileWithRetry, exc: BaseException) -> bool:
-            if isinstance(exc, ValueError):
-                return True
-            return False
-
-        r = WhileWithRetry(retries=2, pause_sec=1.0, retry_on=(OSError,), on_exception=decide)
-
-    Example — type-based retries via ``on_is_retry`` instead of ``retry_on``::
-
-        def is_io(r: WhileWithRetry, exc: BaseException) -> bool:
-            return isinstance(exc, OSError)
-
-        r = WhileWithRetry(retries=2, pause_sec=1.0, on_is_retry=is_io)
-
-    Attributes updated by :meth:`attempt` / ``_AttemptCtx``:
-
-    - ``outcome``: ``'running'`` until finished, then ``'ok'`` or ``'failed'``.
-    - ``error``: set when ``outcome == 'failed'`` (last exception or non-retryable break).
-    - ``last_exception``: last exception passed to ``__exit__`` while handling a failure;
-      cleared when an attempt completes without raising.
     """
 
     retries: int
     pause_sec: float = 0.0
-    retry_on: tuple[type[BaseException], ...] = (OSError,)
+    exc_retry_list: tuple[type[BaseException], ...] = ()
     on_exception: Callable[['WhileWithRetry', BaseException], bool] | None = None
     on_is_retry: Callable[['WhileWithRetry', BaseException], bool] | None = None
     on_retry: Callable[['WhileWithRetry'], None] | None = None
@@ -142,10 +144,12 @@ class WhileWithRetry:
         return self.on_exception(self, exc) is True
 
     def is_retry(self, exc: BaseException) -> bool:
-        """Whether ``exc`` is retryable: ``on_is_retry`` if set, else ``isinstance`` against ``retry_on``."""
+        """Whether ``exc`` is retryable: ``on_is_retry`` if set, else ``isinstance`` against ``exc_retry_list``."""
         if self.on_is_retry is not None:
             return self.on_is_retry(self, exc)
-        return isinstance(exc, self.retry_on)
+        if not self.exc_retry_list:
+            return False
+        return isinstance(exc, self.exc_retry_list)
 
     def proc_retry(self) -> None:
         """Run ``on_retry`` if set (before ``pause_sec`` in the retry step)."""
