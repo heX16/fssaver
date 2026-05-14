@@ -1,0 +1,10 @@
+# Store and check out text files with Unix (LF) line endings.
+* text=auto eol=lf
+
+# Binary assets — do not apply line-ending conversion
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.webp binary
+*.zip binary

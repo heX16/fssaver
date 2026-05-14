@@ -1,4 +1,10 @@
+.venv/*
+.idea/*
+.vscode/*
+.pytest_cache/*
+.cursor/*
 __pycache__/*
 *.pyc
 *.log
 /tmp/*
+
