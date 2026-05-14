@@ -256,6 +256,19 @@ class TestFSSScripts(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(r.stdout.strip(), '')
 
+    def test_fss_check_bar_zero_and_no_progress_bar_flags(self):
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+        check_script = str(Path('fss_check.py').resolve())
+        index_path = self.test_dir / '.index_hash.yaml'
+        for extra in [['--bar=0'], ['--no-progress-bar']]:
+            r = subprocess.run(
+                ['python', check_script, f'--fss={index_path}', *extra],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertEqual(r.stdout.strip(), '')
+
     def test_fss_check_merged_with_snapshot_base_ok(self):
         subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
         merged_file = self.test_dir / 'merged_for_check.yaml'
