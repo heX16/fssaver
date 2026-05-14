@@ -402,8 +402,7 @@ class WhileWithRetryIO(WhileWithRetry):
         # All OSError is retryable, except FileNotFoundError (subclass of OSError).
         return isinstance(exc, OSError) and not isinstance(exc, FileNotFoundError)
 
-    def proc_retry(self) -> None:
-        exc = self.last_exception
+    def proc_retry(self, exc: BaseException) -> None:
         if isinstance(exc, OSError):
             print(
                 f'ERROR: I/O error({exc.errno})! Retrying in {self.retries_pause} seconds... '

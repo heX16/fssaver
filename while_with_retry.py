@@ -50,8 +50,7 @@ and then either :meth:`WhileWithRetry.proc_retry` (retry scheduled) or
 ends immediately as failed (``r.error`` is set) and the exception is **suppressed** by ``__exit__``.
 If it returns ``False`` (or any non-``True`` value), the engine proceeds with normal retry logic.
 
-``on_retry(r)`` runs once per scheduled retry (before the inter-attempt sleep). Use
-``r.last_exception`` if you need the exception instance.
+``on_retry(r, exc)`` runs once per scheduled retry (before the inter-attempt sleep).
 
 ``on_fail(r, exc)`` runs once when the session enters the final ``outcome == 'failed'`` state.
 ``r.error`` is set to ``exc`` before the callback runs.
@@ -104,6 +103,21 @@ class WhileWithRetry:
 
     See the module docstring for the full usage guide, hook semantics, and examples.
 
+    Attributes:
+        retries: How many retryable failures to swallow before ending the session as failed.
+        pause_sec: Sleep duration (seconds) between retry attempts.
+        exc_retry_list: Exception types that are considered retryable when ``on_is_retry`` is not set.
+        on_exception: Optional hook invoked for any exception from the ``with attempt():`` body.
+            If it returns ``True``, the session ends as failed and the exception is suppressed.
+        on_is_retry: Optional hook that decides whether an exception is retryable.
+        on_retry: Optional hook invoked before sleeping in a retry step.
+        on_fail: Optional hook invoked when the session ends as failed (after ``error`` is assigned).
+
+        outcome: Session outcome: ``'running'`` while attempts are in progress, then ``'ok'`` or ``'failed'``.
+        error: Final exception that ended the session as failed (only set when ``outcome == 'failed'``).
+        last_exception: Most recent exception raised by the ``with attempt():`` body.
+            Useful for logging/telemetry during retries. Reset to ``None`` on success.
+
     Quick example::
 
         r = WhileWithRetry(retries=2, pause_sec=0.5, exc_retry_list=(OSError,))
@@ -122,7 +136,7 @@ class WhileWithRetry:
     exc_retry_list: tuple[type[BaseException], ...] = ()
     on_exception: Callable[['WhileWithRetry', BaseException], bool] | None = None
     on_is_retry: Callable[['WhileWithRetry', BaseException], bool] | None = None
-    on_retry: Callable[['WhileWithRetry'], None] | None = None
+    on_retry: Callable[['WhileWithRetry', BaseException], None] | None = None
     on_fail: Callable[['WhileWithRetry', BaseException], None] | None = None
 
     _failures_swallowed: int = field(default=0, init=False)
@@ -151,10 +165,10 @@ class WhileWithRetry:
             return False
         return isinstance(exc, self.exc_retry_list)
 
-    def proc_retry(self) -> None:
+    def proc_retry(self, exc: BaseException) -> None:
         """Run ``on_retry`` if set (before ``pause_sec`` in the retry step)."""
         if self.on_retry is not None:
-            self.on_retry(self)
+            self.on_retry(self, exc)
 
     def proc_fail(self, exc: BaseException) -> None:
         """Run ``on_fail`` if set (``error`` is already assigned)."""
@@ -170,7 +184,7 @@ class WhileWithRetry:
     def _apply_retry_step(self, exc: BaseException) -> bool:
         """Sleep, bump failure count; return True to retry, else set failed state and return False."""
         if self._failures_swallowed < self.retries:
-            self.proc_retry()
+            self.proc_retry(exc)
             time.sleep(self.pause_sec)
             self._failures_swallowed += 1
             return True
