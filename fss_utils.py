@@ -378,6 +378,35 @@ def iter_index_file_entries(data: dict) -> Iterator[tuple[str, dict, str]]:
         yield key, meta, expected_l
 
 
+def parse_fss_ctime_utc(ctime_str: str) -> datetime | None:
+    """
+    Parse FSS ``ctime`` / ``mtime`` string (UTC) ``YYYY-MM-DD_HH:MM:SSZ`` into an aware datetime.
+
+    Returns ``None`` if the string is empty or cannot be parsed.
+    """
+    s = str(ctime_str).strip()
+    if not s:
+        return None
+    try:
+        naive = datetime.strptime(s, '%Y-%m-%d_%H:%M:%SZ')
+    except ValueError:
+        return None
+    return naive.replace(tzinfo=timezone.utc)
+
+
+def set_file_ctime(path: str | Path, dt: datetime) -> None:
+    """
+    Set filesystem creation/birth time for ``path`` to ``dt``.
+
+    This repository does not ship a portable ctime setter; override or replace this function
+    with a platform-specific implementation (e.g. Win32 APIs, ``ctypes``, vendor tools).
+    ``mtime``-only restore modes work without implementing this hook.
+    """
+    raise NotImplementedError(
+        'set_file_ctime is not implemented in fss_utils; supply one for your platform.'
+    )
+
+
 class WhileWithRetryIO(WhileWithRetry):
     """
     :class:`WhileWithRetry` policy for operations on a single filesystem path (open/read,
