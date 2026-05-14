@@ -7,11 +7,15 @@ configured ``retries`` (same counting style as ``fss_utils.load_yaml``: ``retrie
 number of *extra* attempts after the first try).
 
 The built-in retry path does not log; use ``on_exception`` if you want messages or
-structured logging before returning ``True`` / ``False`` / ``None``.
+structured logging before returning a decision (see table below).
 
-Optional ``on_exception(exc) -> False | True | None`` overrides per exception: ``False``
-stops all further attempts, ``True`` forces a retry step (still bounded by ``retries``),
-``None`` falls back to ``retry_on`` (see :class:`WhileWithRetry`).
+``on_exception`` must return ``True`` or ``False``. Only ``True`` is handled specially (see
+table); any other return value delegates like ``False``.
+
+| Return | Typical meaning | Session ``outcome`` | Exception escapes ``with`` |
+|--------|-----------------|---------------------|------------------------------|
+| ``True`` | Stop immediately as ``failed``, record ``r.error``, do not re-raise | ``failed`` | No (suppressed) |
+| ``False`` | Delegate to ``on_is_retry`` (if set) else ``retry_on``, then default retry counting | Same as built-in path | Yes if not retryable or budget exhausted |
 
 Example — read a file text, sleeping between ``OSError`` retries::
 
@@ -28,9 +32,17 @@ Example — read a file text, sleeping between ``OSError`` retries::
     if r.outcome != 'ok':
         raise r.error
 
-Non-retryable errors (e.g. ``FileNotFoundError`` if not a subclass of ``retry_on``) are
-not swallowed: they end the session with ``outcome == 'failed'`` and propagate out of
-``__exit__`` after recording ``r.error``.
+Non-retryable errors (e.g. ``on_is_retry(exc)`` is ``False``, or the type is not a subclass
+of ``retry_on`` when ``on_is_retry`` is unset) are not swallowed: they end the session with
+``outcome == 'failed'`` and propagate out of ``__exit__`` after recording ``r.error``. The
+same end state without propagating is selected by returning ``True`` from ``on_exception``.
+
+Optional ``on_retry(r)`` runs once each time the session schedules another attempt (before
+the inter-attempt ``pause_sec`` sleep). Use ``r.last_exception`` inside the callback if you
+need the exception instance (``on_retry`` only receives ``r``). Optional ``on_fail(r, exc)``
+runs once when the session enters the final ``outcome == 'failed'`` state (including
+non-retryable errors and exhausted retry budget); ``r.error`` is set to ``exc`` before
+``on_fail`` runs.
 """
 
 from __future__ import annotations
@@ -49,15 +61,13 @@ class WhileWithRetry:
     ``range(retries + 1)`` in ``fss_utils.load_yaml``).
 
     Optional ``on_exception`` is called for every exception raised by the ``with`` body.
-    There is no built-in ``print``; use this hook for logging if you need it. Return value:
+    It must return ``True`` (end as ``failed``, suppress the exception) or ``False`` (use
+    the built-in retry filter and counting). Use ``on_retry`` or ``on_fail`` for logging.
 
-    - ``False`` — stop the session immediately (no further attempts), set ``outcome`` to
-      ``'failed'``, store the exception in ``error``, and re-raise it out of ``__exit__``.
-    - ``True`` — take one retry step: same sleep and counter as the built-in path; if the
-      retry budget is exhausted, behave like a final failure (``outcome == 'failed'``,
-      exception propagates).
-    - ``None`` — ignore the handler for this decision and use ``retry_on`` plus ``retries``
-      exactly like when ``on_exception`` was not passed.
+    Optional ``on_retry(self)`` is invoked for each scheduled retry (before ``pause_sec``).
+    ``last_exception`` is the exception currently being handled (set before ``on_retry`` /
+    ``on_fail``). Optional ``on_fail(r, exc)`` is invoked when the session ends as ``failed``
+    (``r.error`` is set to ``exc`` beforehand).
 
     Example — same pattern as the module docstring, with explicit outcome handling::
 
@@ -71,33 +81,47 @@ class WhileWithRetry:
         if r.outcome != 'ok':
             raise r.error
 
-    Example — custom handler (log or filter; retry only a specific errno, else delegate with ``None``)::
+    ``on_is_retry(exc)`` — optional functional counterpart to ``retry_on`` (if set, it replaces
+    the tuple check for whether the exception is retryable). Return ``True`` to take a retry
+    step (still bounded by ``retries``), ``False`` to end the session as failed and re-raise.
 
-        import logging
+    Example — custom handler (abort the ``with`` body without propagating on a specific error)::
 
-        def decide(exc: BaseException) -> bool | None:
-            if isinstance(exc, OSError) and exc.errno == 11:
-                logging.warning('retry after errno 11: %s', exc)
+        def decide(exc: BaseException) -> bool:
+            if isinstance(exc, ValueError):
                 return True
-            return None
+            return False
 
         r = WhileWithRetry(retries=2, pause_sec=1.0, retry_on=(OSError,), on_exception=decide)
+
+    Example — type-based retries via ``on_is_retry`` instead of ``retry_on``::
+
+        def is_io(exc: BaseException) -> bool:
+            return isinstance(exc, OSError)
+
+        r = WhileWithRetry(retries=2, pause_sec=1.0, on_is_retry=is_io)
 
     Attributes updated by :meth:`attempt` / ``_AttemptCtx``:
 
     - ``outcome``: ``'running'`` until finished, then ``'ok'`` or ``'failed'``.
     - ``error``: set when ``outcome == 'failed'`` (last exception or non-retryable break).
+    - ``last_exception``: last exception passed to ``__exit__`` while handling a failure;
+      cleared when an attempt completes without raising.
     """
 
     retries: int
     pause_sec: float = 0.0
     retry_on: tuple[type[BaseException], ...] = (OSError,)
-    on_exception: Callable[[BaseException], bool | None] | None = None
+    on_exception: Callable[[BaseException], bool] | None = None
+    on_is_retry: Callable[[BaseException], bool] | None = None
+    on_retry: Callable[['WhileWithRetry'], None] | None = None
+    on_fail: Callable[['WhileWithRetry', BaseException], None] | None = None
 
     _failures_swallowed: int = field(default=0, init=False)
     _done: bool = field(default=False, init=False)
     outcome: str = field(default='running', init=False)
     error: BaseException | None = field(default=None, init=False)
+    last_exception: BaseException | None = field(default=None, init=False)
 
     def __bool__(self) -> bool:
         return not self._done
@@ -105,15 +129,22 @@ class WhileWithRetry:
     def attempt(self) -> '_AttemptCtx':
         return _AttemptCtx(self)
 
-    def _apply_retry_step(self, exc: BaseException) -> bool:
-        """Sleep, bump failure count; return True to retry, else set failed state and return False."""
-        if self._failures_swallowed < self.retries:
-            time.sleep(self.pause_sec)
-            self._failures_swallowed += 1
-            return True
+    def _finalize_failed(self, exc: BaseException) -> None:
         self._done = True
         self.outcome = 'failed'
         self.error = exc
+        if self.on_fail is not None:
+            self.on_fail(self, exc)
+
+    def _apply_retry_step(self, exc: BaseException) -> bool:
+        """Sleep, bump failure count; return True to retry, else set failed state and return False."""
+        if self._failures_swallowed < self.retries:
+            if self.on_retry is not None:
+                self.on_retry(self)
+            time.sleep(self.pause_sec)
+            self._failures_swallowed += 1
+            return True
+        self._finalize_failed(exc)
         return False
 
 
@@ -127,25 +158,28 @@ class _AttemptCtx:
     def __exit__(self, exc_type, exc, tb) -> bool:
         r = self._r
         if exc_type is None:
+            r.last_exception = None
             r._done = True
             r.outcome = 'ok'
             r.error = None
             return False
 
+        r.last_exception = exc
+
         if r.on_exception is not None:
             decision = r.on_exception(exc)
-            if decision is False:
-                r._done = True
-                r.outcome = 'failed'
-                r.error = exc
-                return False
             if decision is True:
-                return r._apply_retry_step(exc)
+                r._finalize_failed(exc)
+                r.last_exception = None
+                return True
 
-        if not issubclass(exc_type, r.retry_on):
-            r._done = True
-            r.outcome = 'failed'
-            r.error = exc
+        retryable = (
+            (r.on_is_retry is not None and r.on_is_retry(exc))
+            or (r.on_is_retry is None and issubclass(exc_type, r.retry_on))
+        )
+
+        if not retryable:
+            r._finalize_failed(exc)
             return False
 
         return r._apply_retry_step(exc)

@@ -13,6 +13,8 @@ import time
 import typing
 import traceback
 
+from while_with_retry import WhileWithRetry
+
 try:
     import PIL
 except ImportError:
@@ -134,6 +136,7 @@ def time_trim_ms(t: datetime | float | int):
     return t
 
 
+# TODO: add `retries` and `retries_pause`
 def load_yaml_fss_file_stream_callback(yaml_file: Path, process_item_func: typing.Callable[[dict, Path], None], encoding='utf-8'):
     """
     Process YAML file in a streaming fashion, applying custom processing function to each item.
@@ -219,6 +222,7 @@ def load_yaml_fss_file_stream_callback(yaml_file: Path, process_item_func: typin
         return False
 
 
+# TODO: add `retries` and `retries_pause`
 def load_yaml_fss_file_stream_iter(
     yaml_file: Path,
     encoding: str = 'utf-8',
@@ -375,26 +379,47 @@ def iter_index_file_entries(data: dict) -> Iterator[tuple[str, dict, str]]:
 
 
 def load_yaml(input_file: Path, retries: int = 0, retries_pause: int = 0, encoding='utf-8', return_on_fail=None):
-    for attempt in range(retries + 1):
-        try:
-            with open(input_file, 'r', encoding=encoding) as f:
-                store = yaml.safe_load(f)
-                if store is None:
-                    store = return_on_fail
-            return store
-        except FileNotFoundError:
+    store: typing.Any = return_on_fail
+
+    # All OSError is retryable, except FileNotFoundError.
+    # (FileNotFoundError is a subclass of OSError)
+    def on_is_retry(exc: BaseException) -> bool:
+        return isinstance(exc, OSError) and not isinstance(exc, FileNotFoundError)
+
+    def on_retry(br: WhileWithRetry):
+        exc = br.last_exception
+        if isinstance(exc, OSError):
+            print(
+                f'ERROR: I/O error({exc.errno})! Retrying in {retries_pause} seconds... '
+                f'File: {str(input_file)}. Error: {exc.strerror}'
+            )
+
+    def on_fail(br: WhileWithRetry, exc: BaseException):
+        if isinstance(exc, FileNotFoundError):
             print('ERROR: file not found: ', str(input_file))
-            return return_on_fail
-        except yaml.YAMLError as e:
-            print(f'ERROR: error in YAML file {str(input_file)}: {e}')
-            return return_on_fail
-        except IOError as e:
-            if attempt < retries:
-                print(f'ERROR: I/O error({e.errno})! Retrying in {retries_pause} seconds... File: {str(input_file)}. Error: {e.strerror}')
-                time.sleep(retries_pause)
-            else:
-                print(f'ERROR: I/O error({e.errno})! File: {str(input_file)}. Error: {e.strerror}')
-                return return_on_fail
+        elif isinstance(exc, yaml.YAMLError):
+            print(f'ERROR: error in YAML file {str(input_file)}: {exc}')
+        elif isinstance(exc, OSError):
+            print(f'ERROR: I/O error({exc.errno})! File: {str(input_file)}. Error: {exc.strerror}')
+
+    def on_exception(exc: BaseException) -> bool:
+        return isinstance(exc, (FileNotFoundError, yaml.YAMLError))
+
+    r = WhileWithRetry(
+        retries=retries,
+        pause_sec=float(retries_pause),
+        retry_on=(OSError,),
+        on_is_retry=on_is_retry,
+        on_exception=on_exception,
+        on_retry=on_retry,
+        on_fail=on_fail,
+    )
+    while r:
+        with r.attempt():
+            with open(input_file, 'r', encoding=encoding) as f:
+                loaded = yaml.safe_load(f)
+            store = return_on_fail if loaded is None else loaded
+    return store
 
 
 def save_to_csv(file_path: Path, data, headers=None):
