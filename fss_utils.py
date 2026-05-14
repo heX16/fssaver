@@ -378,41 +378,58 @@ def iter_index_file_entries(data: dict) -> Iterator[tuple[str, dict, str]]:
         yield key, meta, expected_l
 
 
+class WhileWithRetryIO(WhileWithRetry):
+    """
+    Retry policy for reading YAML from disk: logging and which errors retry vs fail fast.
+
+    Overrides hook methods (not ``super``): :meth:`is_retry`, :meth:`proc_exception`,
+    :meth:`proc_retry`, :meth:`proc_fail`.
+    """
+
+    def __init__(
+        self,
+        input_file: Path,
+        retries_pause: int,
+        *,
+        retries: int,
+        pause_sec: float = 0.0,
+    ) -> None:
+        super().__init__(retries=retries, pause_sec=pause_sec)
+        self.input_file = input_file
+        self.retries_pause = retries_pause
+
+    def is_retry(self, exc: BaseException) -> bool:
+        # All OSError is retryable, except FileNotFoundError (subclass of OSError).
+        return isinstance(exc, OSError) and not isinstance(exc, FileNotFoundError)
+
+    def proc_retry(self) -> None:
+        exc = self.last_exception
+        if isinstance(exc, OSError):
+            print(
+                f'ERROR: I/O error({exc.errno})! Retrying in {self.retries_pause} seconds... '
+                f'File: {str(self.input_file)}. Error: {exc.strerror}'
+            )
+
+    def proc_fail(self, exc: BaseException) -> None:
+        if isinstance(exc, FileNotFoundError):
+            print('ERROR: file not found: ', str(self.input_file))
+        elif isinstance(exc, yaml.YAMLError):
+            print(f'ERROR: error in YAML file {str(self.input_file)}: {exc}')
+        elif isinstance(exc, OSError):
+            print(f'ERROR: I/O error({exc.errno})! File: {str(self.input_file)}. Error: {exc.strerror}')
+
+    def proc_exception(self, exc: BaseException) -> bool:
+        return isinstance(exc, (FileNotFoundError, yaml.YAMLError))
+
+
 def load_yaml(input_file: Path, retries: int = 0, retries_pause: int = 0, encoding='utf-8', return_on_fail=None):
     store: typing.Any = return_on_fail
 
-    # All OSError is retryable, except FileNotFoundError.
-    # (FileNotFoundError is a subclass of OSError)
-    def on_is_retry(exc: BaseException) -> bool:
-        return isinstance(exc, OSError) and not isinstance(exc, FileNotFoundError)
-
-    def on_retry(br: WhileWithRetry):
-        exc = br.last_exception
-        if isinstance(exc, OSError):
-            print(
-                f'ERROR: I/O error({exc.errno})! Retrying in {retries_pause} seconds... '
-                f'File: {str(input_file)}. Error: {exc.strerror}'
-            )
-
-    def on_fail(br: WhileWithRetry, exc: BaseException):
-        if isinstance(exc, FileNotFoundError):
-            print('ERROR: file not found: ', str(input_file))
-        elif isinstance(exc, yaml.YAMLError):
-            print(f'ERROR: error in YAML file {str(input_file)}: {exc}')
-        elif isinstance(exc, OSError):
-            print(f'ERROR: I/O error({exc.errno})! File: {str(input_file)}. Error: {exc.strerror}')
-
-    def on_exception(exc: BaseException) -> bool:
-        return isinstance(exc, (FileNotFoundError, yaml.YAMLError))
-
-    r = WhileWithRetry(
+    r = WhileWithRetryIO(
+        input_file,
+        retries_pause,
         retries=retries,
         pause_sec=float(retries_pause),
-        retry_on=(OSError,),
-        on_is_retry=on_is_retry,
-        on_exception=on_exception,
-        on_retry=on_retry,
-        on_fail=on_fail,
     )
     while r:
         with r.attempt():
