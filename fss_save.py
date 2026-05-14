@@ -21,7 +21,6 @@ import hashlib
 from pathlib import Path
 from docopt import docopt
 from datetime import datetime, timezone
-import time
 from fss_utils import *
 
 g_yaml_name = '.index_hash.yaml'
@@ -245,28 +244,27 @@ def read_file_and_calculate_md5(file_path: Path) -> Tuple[str, bool]:
 
 def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pause: float) -> Tuple[str, bool]:
     """
-    Calculate the MD5 hash of a file with retry mechanism in case of PermissionError.
+    Calculate the MD5 hash of a file with retries on transient :exc:`OSError` (see
+    :class:`WhileWithRetryIO` in ``fss_utils``). Missing path fails fast without retries.
 
     :param file_path: Path to the file.
-    :param retries: Number of retries for reading the file.
+    :param retries: Number of *extra* attempts after the first try (same as :class:`WhileWithRetry`).
     :param retries_pause: Pause duration between retries in seconds.
-    :return: MD5 hash of the file and zero flag
+    :return: MD5 hash of the file and zero flag, or ``('', False)`` after final I/O failure.
     """
-    attempt = 0
-    while attempt <= retries:
-        try:
-            return read_file_and_calculate_md5(file_path)
-        except OSError as e:
-            if attempt < retries:
-                print(f'WARN: Read error. Retrying {attempt}/{retries} in {retries_pause} seconds... ')
-                time.sleep(retries_pause)
-                attempt += 1
-            else:
-                print(f'ERROR: {e.errno} - {e.strerror}')
-                # TODO: raise?
-                return ('', False)
-    
-    # TODO: raise?
+    r = WhileWithRetryIO(
+        file_path,
+        int(retries_pause),
+        retries=retries,
+        pause_sec=float(retries_pause),
+    )
+    result: Tuple[str, bool] | None = None
+    while r:
+        with r.attempt():
+            result = read_file_and_calculate_md5(file_path)
+    if r.outcome == 'ok':
+        assert result is not None
+        return result
     return ('', False)
 
 

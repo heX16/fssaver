@@ -380,9 +380,25 @@ def iter_index_file_entries(data: dict) -> Iterator[tuple[str, dict, str]]:
 
 class WhileWithRetryIO(WhileWithRetry):
     """
-    Retry policy for reading YAML from disk: logging and which errors retry vs fail fast.
+    :class:`WhileWithRetry` policy for operations on a single filesystem path (open/read,
+    text or binary, YAML load, MD5 scan, etc.). **Binary files are fully supported**; the same
+    retry and logging rules apply, and only :exc:`yaml.YAMLError` is format-specific. Retry rules
+    depend only on **how the OS fails**, not on the file format.
 
-    Overrides hook methods (not ``super``): :meth:`is_retry`, :meth:`proc_exception`,
+    **Retryable:** any :exc:`OSError` except :exc:`FileNotFoundError` (e.g. transient I/O,
+    ``EBUSY``). Non-retryable failures end the session immediately.
+
+    **No retries (fail fast, exception suppressed by the session):**
+    :exc:`FileNotFoundError` (missing path) and :exc:`yaml.YAMLError` (invalid YAML after a
+    successful read). If the attempt body does not parse the file with PyYAML, the YAML-related
+    branches in :meth:`proc_exception` and :meth:`proc_fail` are never taken; they are inert and
+    do not change retry timing, outcomes, or non-YAML error handling.
+
+    **Logging:** :meth:`proc_retry` prints before each retry; :meth:`proc_fail` prints once
+    on final failure. ``retries_pause`` is only used in retry messages (human-readable seconds);
+    actual delay is ``pause_sec`` from the base class constructor.
+
+    Hook overrides (no ``super`` calls): :meth:`is_retry`, :meth:`proc_exception`,
     :meth:`proc_retry`, :meth:`proc_fail`.
     """
 
