@@ -1,5 +1,6 @@
 import yaml
 import csv
+from collections.abc import Iterator
 from pathlib import Path
 from datetime import datetime
 from datetime import datetime, timezone
@@ -216,6 +217,34 @@ def load_yaml_fss_file_stream(yaml_file: Path, process_item_func: typing.Callabl
         print(f'ERROR processing {yaml_file.name}: {str(e)}')
         traceback.print_exc()
         return False
+
+
+SKIP_TYPES = frozenset({'error', 'hardcoded_skip', 'unknown'})
+
+
+def iter_index_file_entries(data: dict) -> Iterator[tuple[str, dict, str]]:
+    """Yield (key, meta, expected_md5_lower) for each index row that check_index verifies."""
+    if not data:
+        return
+    for key in sorted(data.keys()):
+        meta = data[key]
+        if not isinstance(meta, dict):
+            continue
+
+        entry_type = meta.get('type', '')
+        if entry_type in SKIP_TYPES:
+            continue
+        if entry_type != 'file':
+            continue
+        if meta.get('error') is True:
+            continue
+
+        expected = meta.get('md5')
+        if not expected:
+            continue
+
+        expected_l = str(expected).strip().lower()
+        yield key, meta, expected_l
 
 
 def load_yaml(input_file: Path, retries: int = 0, retries_pause: int = 0, encoding='utf-8', return_on_fail=None):

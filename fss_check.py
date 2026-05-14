@@ -1,11 +1,11 @@
 """
 Verify file content MD5 against a saved YAML index (stdout logs problems only).
 
-Progress: one tqdm bar on stderr counts index file entries being checked; disabled when
-stderr is not a TTY (e.g. captured subprocess output).
+Progress: one tqdm bar on stderr counts index file entries being checked. It is off when stderr
+is not a TTY (e.g. captured subprocess output), or when you pass --no-progress-bar or --bar=0.
 
 Usage:
-  fss_check.py (--fss=<yaml> [--snapshot-base=<path>] [--fssdir=<path>] | --dir=<path>) [--retries=<retries>] [--retries-pause=<retries-pause>] [--skip-not-available]
+  fss_check.py (--fss=<yaml> [--snapshot-base=<path>] [--fssdir=<path>] | --dir=<path>) [--retries=<retries>] [--retries-pause=<retries-pause>] [--skip-not-available] [--bar=<n>] [--no-progress-bar]
   fss_check.py -h | --help
 
 Options:
@@ -17,6 +17,8 @@ Options:
   --retries=<retries>               File read retries [default: 1].
   --retries-pause=<retries-pause>   Pause between retries in seconds [default: 1].
   --skip-not-available              If a path from the index does not exist on disk, skip it (no log line, not counted as failure).
+  --bar=<n>                         Progress bar: 1 when stderr is a TTY (default if omitted), 0 to disable the bar even on a TTY [default: 1].
+  --no-progress-bar                 Disable the tqdm progress bar (same effect as --bar=0).
 
 Exit codes:
   0  All checked entries with stored md5 matched disk (or skipped).
@@ -27,18 +29,16 @@ Exit codes:
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterator
+from contextlib import nullcontext
 from pathlib import Path
 
 from docopt import docopt
 from tqdm import tqdm
 
-from fss_utils import load_yaml
+from fss_utils import iter_index_file_entries, load_yaml
 from fss_save import read_file_and_calculate_md5_retry
 
 g_yaml_name = '.index_hash.yaml'
-
-SKIP_TYPES = frozenset({'error', 'hardcoded_skip', 'unknown'})
 
 
 def resolve_disk_path(key: str, base_dir: Path) -> Path:
@@ -46,31 +46,6 @@ def resolve_disk_path(key: str, base_dir: Path) -> Path:
     if entry_path.is_absolute():
         return entry_path
     return base_dir / entry_path
-
-
-def iter_index_file_entries(data: dict) -> Iterator[tuple[str, dict, str]]:
-    """Yield (key, meta, expected_md5_lower) for each index row that check_index verifies."""
-    if not data:
-        return
-    for key in sorted(data.keys()):
-        meta = data[key]
-        if not isinstance(meta, dict):
-            continue
-
-        entry_type = meta.get('type', '')
-        if entry_type in SKIP_TYPES:
-            continue
-        if entry_type != 'file':
-            continue
-        if meta.get('error') is True:
-            continue
-
-        expected = meta.get('md5')
-        if not expected:
-            continue
-
-        expected_l = str(expected).strip().lower()
-        yield key, meta, expected_l
 
 
 def check_index(
@@ -142,6 +117,7 @@ def run_fss_mode(
     retries: int,
     retries_pause: float,
     skip_missing: bool,
+    show_progress_bar: bool,
 ) -> int:
     if fss_path.name != g_yaml_name and not snapshot_base_arg:
         print(
@@ -161,53 +137,61 @@ def run_fss_mode(
         return 2
 
     total = sum(1 for _ in iter_index_file_entries(data))
-    with tqdm(
-        total=total,
-        unit='file',
-        file=sys.stderr,
-        disable=not sys.stderr.isatty(),
-    ) as bar:
+
+    if show_progress_bar:
+        bar_cm = tqdm(total=total, unit='file', file=sys.stderr, disable=False)
+    else:
+        bar_cm = nullcontext(None)
+
+    with bar_cm as bar:
         n = check_index(data, base_dir, retries, retries_pause, skip_missing=skip_missing, pbar=bar)
+
     return 1 if n else 0
 
 
-def run_dir_mode(dir_path: Path, retries: int, retries_pause: float, skip_missing: bool) -> int:
+def run_dir_mode(
+    dir_path: Path,
+    retries: int,
+    retries_pause: float,
+    skip_missing: bool,
+    show_progress_bar: bool,
+) -> int:
     root = dir_path.resolve()
     if not root.is_dir():
         print(f'ERROR: not a directory: {root}')
         return 2
 
-    yaml_files = sorted(root.rglob(g_yaml_name))
-    if not yaml_files:
-        print(f'ERROR: no {g_yaml_name!r} files under {root}')
-        return 2
+    issues = 0
+    seen_any = False
+    
+    if show_progress_bar:
+        bar_cm = tqdm(total=None, unit='file', file=sys.stderr, disable=False)
+    else:
+        bar_cm = nullcontext(None)
 
-    grand_total = 0
-    for yaml_file in yaml_files:
-        data = load_yaml(yaml_file, retries=retries, retries_pause=retries_pause, return_on_fail=None)
-        if data is None:
-            print(f'ERROR: could not load YAML: {yaml_file}')
-            return 2
-        grand_total += sum(1 for _ in iter_index_file_entries(data))
+    with bar_cm as pbar:
+        for yaml_file in root.rglob(g_yaml_name):
+            seen_any = True
 
-    total_issues = 0
-    with tqdm(
-        total=grand_total,
-        unit='file',
-        file=sys.stderr,
-        disable=not sys.stderr.isatty(),
-    ) as bar:
-        for yaml_file in yaml_files:
             data = load_yaml(yaml_file, retries=retries, retries_pause=retries_pause, return_on_fail=None)
+
             if data is None:
                 print(f'ERROR: could not load YAML: {yaml_file}')
                 return 2
-            base_dir = yaml_file.parent
-            total_issues += check_index(
-                data, base_dir, retries, retries_pause, skip_missing=skip_missing, pbar=bar
+                
+            issues += check_index(
+                data,
+                yaml_file.parent,
+                retries,
+                retries_pause,
+                skip_missing=skip_missing,
+                pbar=pbar,
             )
 
-    return 1 if total_issues else 0
+    if not seen_any:
+        print(f'ERROR: no {g_yaml_name!r} files under {root}')
+        return 2
+    return 1 if issues else 0
 
 
 def main() -> int:
@@ -216,14 +200,27 @@ def main() -> int:
     retries_pause = float(arguments['--retries-pause'] or 1)
     skip_missing = bool(arguments['--skip-not-available'])
 
+    bar_raw = arguments['--bar']
+    try:
+        bar_n = int(bar_raw) if bar_raw is not None else 1
+    except ValueError:
+        print('ERROR: --bar must be an integer (e.g. 0 or 1)')
+        return 2
+
+    show_bar = (
+        sys.stderr.isatty()
+        and not bool(arguments['--no-progress-bar'])
+        and bar_n != 0
+    )
+
     if arguments['--fss']:
         fss_path = Path(arguments['--fss']).expanduser()
         snapshot_base_arg = arguments['--snapshot-base'] or arguments['--fssdir']
-        return run_fss_mode(fss_path, snapshot_base_arg, retries, retries_pause, skip_missing)
+        return run_fss_mode(fss_path, snapshot_base_arg, retries, retries_pause, skip_missing, show_bar)
 
     dir_arg = arguments['--dir']
     assert dir_arg
-    return run_dir_mode(Path(dir_arg).expanduser(), retries, retries_pause, skip_missing)
+    return run_dir_mode(Path(dir_arg).expanduser(), retries, retries_pause, skip_missing, show_bar)
 
 
 if __name__ == '__main__':
