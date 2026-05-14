@@ -7,6 +7,8 @@ from pathlib import Path
 from datetime import datetime
 import tempfile
 
+from fss_check import count_matching_files_with_topdir_progress, g_yaml_name
+
 class TestFSSScripts(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory for testing
@@ -330,6 +332,38 @@ class TestFSSScripts(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn('MD5_MISMATCH', r.stdout)
         self.assertIn('file1.txt', r.stdout)
+
+    def test_count_matching_files_with_topdir_progress_matches_rglob(self):
+        import io
+
+        def assert_matches_rglob(root: Path) -> None:
+            ref = sum(1 for _ in root.rglob(g_yaml_name))
+            self.assertEqual(
+                count_matching_files_with_topdir_progress(
+                    root, g_yaml_name, progress_stream=io.StringIO()
+                ),
+                ref,
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / g_yaml_name).touch()
+            d1 = root / 'd1'
+            d1.mkdir()
+            (d1 / g_yaml_name).touch()
+            inner = d1 / 'inner'
+            inner.mkdir()
+            (inner / g_yaml_name).touch()
+            dotdir = root / '.hidden'
+            dotdir.mkdir()
+            (dotdir / g_yaml_name).touch()
+
+            assert_matches_rglob(root)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root_only = Path(tmp)
+            (root_only / g_yaml_name).touch()
+            assert_matches_rglob(root_only)
 
     def test_fss_check_skip_not_available_missing_file(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,8 +1,10 @@
 """
 Verify file content MD5 against a saved YAML index (stdout logs problems only).
 
-Progress: one tqdm bar on stderr counts index file entries being checked. It is off when stderr
-is not a TTY (e.g. captured subprocess output), or when you pass --no-progress-bar or --bar=0.
+Progress: one tqdm bar on stderr counts index file entries being checked (--fss). In --dir mode,
+when the bar is enabled, a first bar may count YAML indexes per top-level subdirectory under the
+root, then a second bar advances once per .index_hash.yaml verified. Bars are off when stderr is
+not a TTY (e.g. captured subprocess output), or when you pass --no-progress-bar or --bar=0.
 
 Usage:
   fss_check.py (--fss=<yaml> [--snapshot-base=<path>] [--fssdir=<path>] | --dir=<path>) [--retries=<retries>] [--retries-pause=<retries-pause>] [--skip-not-available] [--bar=<n>] [--no-progress-bar]
@@ -39,6 +41,41 @@ from fss_utils import iter_index_file_entries, load_yaml
 from fss_save import read_file_and_calculate_md5_retry
 
 g_yaml_name = '.index_hash.yaml'
+
+
+def count_matching_files_with_topdir_progress(
+    root: Path,
+    basename: str,
+    *,
+    progress_stream,
+) -> int:
+    """
+    Match count under ``root`` for ``basename`` (``rglob`` total; tqdm one step per top-level subdir).
+
+    ``root``: Directory to search.
+
+    ``basename``: The file name whose count is computed.
+
+    ``progress_stream``: Stdio stream tqdm renders the progress bar to.
+    """
+    dirs_in_root = [p for p in root.iterdir() if p.is_dir()]
+
+    if (root / basename).is_file():
+        n = 1
+    else:
+        n = 0
+
+    with tqdm(
+        total=len(dirs_in_root),
+        unit='dir',
+        desc='Counting indexes',
+        file=progress_stream,
+        leave=False,
+    ) as pbar:
+        for d in dirs_in_root:
+            n += sum(1 for _ in d.rglob(basename))
+            pbar.update(1)
+    return n
 
 
 def resolve_disk_path(key: str, base_dir: Path) -> Path:
@@ -163,9 +200,15 @@ def run_dir_mode(
 
     issues = 0
     seen_any = False
-    
+
     if show_progress_bar:
-        bar_cm = tqdm(total=None, unit='file', file=sys.stderr, disable=False)
+        total_yaml = count_matching_files_with_topdir_progress(
+            root, g_yaml_name, progress_stream=sys.stderr
+        )
+        if total_yaml == 0:
+            print(f'ERROR: no {g_yaml_name!r} files under {root}')
+            return 2
+        bar_cm = tqdm(total=total_yaml, unit='file', desc='Verifying', file=sys.stderr)
     else:
         bar_cm = nullcontext(None)
 
@@ -178,19 +221,22 @@ def run_dir_mode(
             if data is None:
                 print(f'ERROR: could not load YAML: {yaml_file}')
                 return 2
-                
+
             issues += check_index(
                 data,
                 yaml_file.parent,
                 retries,
                 retries_pause,
                 skip_missing=skip_missing,
-                pbar=pbar,
+                pbar=None,
             )
+            if pbar is not None:
+                pbar.update(1)
 
-    if not seen_any:
+    if not show_progress_bar and not seen_any:
         print(f'ERROR: no {g_yaml_name!r} files under {root}')
         return 2
+
     return 1 if issues else 0
 
 
