@@ -69,7 +69,6 @@ def save_to_stdout(output_lines):
         sys.stdout.write(line + '\n')
 
 def main(yaml_file=None, output_file=None, use_stdin=False, use_stdout=False):
-    # TODO: use `fss_utils.load_yaml_fss_file_stream`
     if use_stdin:
         flat_structure = yaml.safe_load(sys.stdin)
     else:
@@ -77,6 +76,7 @@ def main(yaml_file=None, output_file=None, use_stdin=False, use_stdout=False):
         if yaml_file is None:
             print('ERROR: No YAML file specified')
             return
+        # TODO: use `fss_utils.load_yaml_fss_file_stream_callback`
         flat_structure = load_yaml(Path(yaml_file))
 
     if flat_structure is None:

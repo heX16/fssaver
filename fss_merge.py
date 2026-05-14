@@ -74,7 +74,7 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int, r
 
     base_dir = path_to_index_hash.parent
 
-    # TODO: use `fss_utils.load_yaml_fss_file_stream`
+    # TODO: use `fss_utils.load_yaml_fss_file_stream_callback`
     index_data = load_yaml(path_to_index_hash, retries=retries, retries_pause=retries_pause)
 
     if index_data is not None:
@@ -82,7 +82,6 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int, r
             add_data_to_merged_data(merged_data, file_data, file_name, base_dir, root_path, retries, retries_pause)
 
     return merged_data
-
 
 
 def main():

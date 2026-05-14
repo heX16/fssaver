@@ -367,12 +367,12 @@ def main():
     # Process files in parallel using ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=2) as executor:
         future_initial = executor.submit(
-            fss_utils.load_yaml_fss_file_stream,
+            fss_utils.load_yaml_fss_file_stream_callback,
             old_yaml,
             initial_file_list.add_item
         )
         future_new = executor.submit(
-            fss_utils.load_yaml_fss_file_stream,
+            fss_utils.load_yaml_fss_file_stream_callback,
             new_yaml,
             new_file_list.add_item
         )

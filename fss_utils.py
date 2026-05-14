@@ -134,8 +134,7 @@ def time_trim_ms(t: datetime | float | int):
     return t
 
 
-# TODO: change to iterator style?
-def load_yaml_fss_file_stream(yaml_file: Path, process_item_func: typing.Callable[[dict, Path], None], encoding='utf-8'):
+def load_yaml_fss_file_stream_callback(yaml_file: Path, process_item_func: typing.Callable[[dict, Path], None], encoding='utf-8'):
     """
     Process YAML file in a streaming fashion, applying custom processing function to each item.
 
@@ -218,6 +217,98 @@ def load_yaml_fss_file_stream(yaml_file: Path, process_item_func: typing.Callabl
         print(f'ERROR processing {yaml_file.name}: {str(e)}')
         traceback.print_exc()
         return False
+
+
+def load_yaml_fss_file_stream_iter(
+    yaml_file: Path,
+    encoding: str = 'utf-8',
+) -> Iterator[tuple[dict, Path]]:
+    """
+    Stream-read a YAML FSS file and yield one (data, path) record at a time.
+
+    Same parsing and progress reporting as load_yaml_fss_file_stream_callback. On error,
+    a message and full traceback are printed and the exception is re-raised.
+
+    Args:
+        yaml_file: Path to the YAML manifest.
+        encoding: Text encoding for the file (default UTF-8).
+
+    Yields:
+        Tuples ``(data, path)`` where ``data`` is the per-file field dict (``size``
+        is coerced to ``int``, or ``-1`` if invalid) and ``path`` is the file path
+        key as a ``Path``.
+
+    Example:
+
+        yaml_path = Path('manifest.yaml')
+        for data, path in load_yaml_fss_file_stream_iter(yaml_path):
+            size = data.get('size')
+            # use path, data ...
+    """
+    try:
+        total_size = yaml_file.stat().st_size
+        items_processed = 0
+        last_print_time = time.time()
+        print(f'Processing {yaml_file.name}, size: {total_size} bytes...')
+
+        with open(yaml_file, 'r', encoding=encoding) as f:
+            loader = yaml.CLoader(f)
+            try:
+                while not isinstance(loader.get_event(), yaml.MappingStartEvent):
+                    pass
+
+                while True:
+                    event = loader.get_event()
+                    if isinstance(event, yaml.MappingEndEvent):
+                        break
+                    if not isinstance(event, yaml.ScalarEvent):
+                        raise ValueError(f'Expected key (ScalarEvent), got {type(event)}')
+                    key = event.value
+
+                    event = loader.get_event()
+                    if not isinstance(event, yaml.MappingStartEvent):
+                        raise ValueError(f'Expected mapping start, got {type(event)}')
+
+                    data = {}
+                    while True:
+                        event = loader.get_event()
+                        if isinstance(event, yaml.MappingEndEvent):
+                            break
+
+                        if not isinstance(event, yaml.ScalarEvent):
+                            raise ValueError(f'Expected field name (ScalarEvent), got {type(event)}')
+                        field = event.value
+
+                        event = loader.get_event()
+                        if not isinstance(event, yaml.ScalarEvent):
+                            raise ValueError(f'Expected value (ScalarEvent) for field {field}, got {type(event)}')
+                        value = event.value
+
+                        if field == 'size':
+                            try:
+                                value = int(value)
+                            except (ValueError, TypeError):
+                                value = -1
+
+                        data[field] = value
+
+                    yield data, Path(key)
+                    items_processed += 1
+
+                    current_time = time.time()
+                    if current_time - last_print_time >= 5:
+                        position = f.tell()
+                        progress = (position / total_size) * 100 if total_size > 0 else 0
+                        print(f'Processing {yaml_file.name}: {progress:.1f}% ({items_processed} items)')
+                        last_print_time = current_time
+            finally:
+                loader.dispose()
+
+        print(f'Completed {yaml_file.name}: 100% ({items_processed} items)')
+    except Exception as e:
+        print(f'ERROR processing {yaml_file.name}: {str(e)}')
+        traceback.print_exc()
+        raise
 
 
 SKIP_TYPES = frozenset({'error', 'hardcoded_skip', 'unknown'})
