@@ -106,15 +106,45 @@ def get_file_content(file_name, encoding='utf-8'):
         return ''
 
 
-def save_to_yaml(data, output_file, encoding='utf-8') -> bool:
+def save_to_yaml(
+    data,
+    output_file,
+    encoding='utf-8',
+    retries: int = 0,
+    retries_pause: int = 0,
+) -> bool:
+    new_text = yaml.dump(data, default_flow_style=False, allow_unicode=True)
+    output_path = Path(output_file)
     saved = False
-    data = yaml.dump(data, default_flow_style=False, allow_unicode=True)
-    if get_file_content(output_file, encoding=encoding) != data:
-        #TODO: with open_with_readonly_handling(output_file, 'w', encoding=encoding) as f:
-        with open(output_file, 'w', encoding=encoding) as f:
-            f.write(data)
-            saved = True
-            # TODO: try except PermissionError ...
+    current_text = ''
+
+    if output_path.is_file():
+        r = WhileWithRetryIO(
+            output_path,
+            retries_pause,
+            retries=retries,
+            pause_sec=float(retries_pause),
+        )
+        while r:
+            with r.attempt():
+                with open(output_path, 'r', encoding=encoding) as f:
+                    current_text = f.read()
+
+    if current_text == new_text:
+        saved = False
+    else:
+        r = WhileWithRetryIO(
+            output_path,
+            retries_pause,
+            retries=retries,
+            pause_sec=float(retries_pause),
+        )
+        while r:
+            with r.attempt():
+                with open(output_path, 'w', encoding=encoding) as f:
+                    f.write(new_text)
+                saved = True
+                
     return saved
 
 

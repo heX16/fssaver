@@ -157,7 +157,7 @@ def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion
 
     # Load the existing YAML file if it exists
     if yaml_path.exists():
-        file_structure = load_yaml(yaml_path)
+        file_structure = load_yaml(yaml_path, retries=retries, retries_pause=retries_pause)
         if file_structure == None:
             return
         yaml_loaded = True
@@ -201,7 +201,7 @@ def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion
         print('SKIP EMPTY DIR:', str(yaml_path))
         saved = False
     else:
-        saved = save_to_yaml(file_structure, yaml_path)
+        saved = save_to_yaml(file_structure, yaml_path, retries=retries, retries_pause=retries_pause)
 
     if saved:
         if yaml_loaded:

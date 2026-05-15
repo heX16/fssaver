@@ -120,7 +120,7 @@ def main():
         # Create a new Path object with the updated filename
         yaml_file = yaml_file.with_name(new_file_name)
 
-    save_to_yaml(merged_structure, yaml_file)
+    save_to_yaml(merged_structure, yaml_file, retries=retries, retries_pause=retries_pause)
     print(f'The merged file structure is saved in {yaml_file}')
 
 
