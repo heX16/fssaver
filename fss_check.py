@@ -1,6 +1,9 @@
 """
 Verify file content MD5 against a saved YAML index (stdout logs problems only).
 
+On normal exit (0 or 1), a one-line summary is printed to stderr (checked, missing, md5_mismatch,
+read_error, issues). Progress bars also use stderr.
+
 Progress: one tqdm bar on stderr counts index file entries being checked (--fss). In --dir mode,
 when the bar is enabled, a first bar may count YAML indexes per top-level subdirectory under the
 root, then a second bar advances once per .index_hash.yaml verified. Bars are off when stderr is
@@ -32,6 +35,7 @@ from __future__ import annotations
 
 import sys
 from contextlib import nullcontext
+from dataclasses import dataclass
 from pathlib import Path
 
 from docopt import docopt
@@ -41,6 +45,28 @@ from fss_utils import count_matching_files_with_topdir_progress, iter_index_file
 from fss_save import read_file_and_calculate_md5_retry
 
 g_yaml_name = '.index_hash.yaml'
+
+
+@dataclass
+class CheckStats:
+    checked: int = 0
+    missing: int = 0
+    md5_mismatch: int = 0
+    read_error: int = 0
+
+    def merge(self, other: CheckStats) -> None:
+        self.checked += other.checked
+        self.missing += other.missing
+        self.md5_mismatch += other.md5_mismatch
+        self.read_error += other.read_error
+
+
+def print_summary(stats: CheckStats, issues: int) -> None:
+    print(
+        f'Summary: checked={stats.checked} missing={stats.missing} '
+        f'md5_mismatch={stats.md5_mismatch} read_error={stats.read_error} issues={issues}',
+        file=sys.stderr,
+    )
 
 
 def resolve_disk_path(key: str, base_dir: Path) -> Path:
@@ -57,22 +83,24 @@ def check_index(
     retries_pause: float,
     skip_missing: bool = False,
     pbar: tqdm | None = None,
-) -> int:
+) -> tuple[int, CheckStats]:
     """
     Compare stored md5 for file entries against disk. Prints issues to stdout.
 
     Returns:
-        Number of problems reported.
+        (Number of problems reported, accumulated CheckStats).
     """
     issues = 0
+    stats = CheckStats()
     if not data:
-        return issues
+        return issues, stats
 
     for key, meta, expected_l in iter_index_file_entries(data):
         try:
             disk_path = resolve_disk_path(key, base_dir)
 
             if not disk_path.exists():
+                stats.missing += 1
                 if skip_missing:
                     continue
                 print(f'MISSING\t{disk_path}\texpected_md5={expected_l}')
@@ -96,10 +124,13 @@ def check_index(
 
             if st_size > 0 and len(actual_l) != 32:
                 print(f'READ_ERROR\t{disk_path}\texpected_md5={expected_l}')
+                stats.read_error += 1
                 issues += 1
                 continue
 
+            stats.checked += 1
             if actual_l != expected_l:
+                stats.md5_mismatch += 1
                 yaml_size = meta.get('size', '')
                 print(
                     f'MD5_MISMATCH\t{disk_path}\texpected={expected_l}\tactual={actual_l}'
@@ -110,7 +141,7 @@ def check_index(
             if pbar is not None:
                 pbar.update(1)
 
-    return issues
+    return issues, stats
 
 
 def run_fss_mode(
@@ -146,8 +177,9 @@ def run_fss_mode(
         bar_cm = nullcontext(None)
 
     with bar_cm as bar:
-        n = check_index(data, base_dir, retries, retries_pause, skip_missing=skip_missing, pbar=bar)
+        n, stats = check_index(data, base_dir, retries, retries_pause, skip_missing=skip_missing, pbar=bar)
 
+    print_summary(stats, n)
     return 1 if n else 0
 
 
@@ -164,6 +196,7 @@ def run_dir_mode(
         return 2
 
     issues = 0
+    stats = CheckStats()
     seen_any = False
 
     if show_progress_bar:
@@ -187,7 +220,7 @@ def run_dir_mode(
                 print(f'ERROR: could not load YAML: {yaml_file}')
                 return 2
 
-            issues += check_index(
+            n, index_stats = check_index(
                 data,
                 yaml_file.parent,
                 retries,
@@ -195,6 +228,8 @@ def run_dir_mode(
                 skip_missing=skip_missing,
                 pbar=None,
             )
+            issues += n
+            stats.merge(index_stats)
             if pbar is not None:
                 pbar.update(1)
 
@@ -202,6 +237,7 @@ def run_dir_mode(
         print(f'ERROR: no {g_yaml_name!r} files under {root}')
         return 2
 
+    print_summary(stats, issues)
     return 1 if issues else 0
 
 

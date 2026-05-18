@@ -427,6 +427,23 @@ class TestFSSScripts(unittest.TestCase):
             )
             self.assertEqual(r2.returncode, 0, r2.stdout + r2.stderr)
             self.assertEqual(r2.stdout.strip(), '')
+            self.assertIn('missing=1', r2.stderr)
+            self.assertIn('checked=0', r2.stderr)
+            self.assertIn('issues=0', r2.stderr)
+
+    def test_fss_check_summary_md5_mismatch(self):
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+        (self.test_dir / 'file1.txt').write_text('corrupted content')
+        check_script = str(Path('fss_check.py').resolve())
+        r = subprocess.run(
+            ['python', check_script, f'--dir={self.test_dir}', '--bar=0'],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn('MD5_MISMATCH', r.stdout)
+        self.assertIn('md5_mismatch=1', r.stderr)
+        self.assertIn('issues=1', r.stderr)
 
 if __name__ == '__main__':
     unittest.main()
