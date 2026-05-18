@@ -157,10 +157,20 @@ def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion
 
     # Load the existing YAML file if it exists
     if yaml_path.exists():
-        file_structure = load_yaml(yaml_path, retries=retries, retries_pause=retries_pause)
-        if file_structure == None:
-            return
-        yaml_loaded = True
+        file_structure = load_yaml(
+            yaml_path,
+            retries=retries,
+            retries_pause=retries_pause,
+            return_on_fail={},
+        )
+        if not isinstance(file_structure, dict):
+            print(f'WARN: invalid/corrupt FSS index, rebuilding from disk: {yaml_path}')
+            file_structure = {}
+        elif yaml_path.stat().st_size > 0 and file_structure == {}:
+            # Parse failure returns return_on_fail={}; non-empty file is a strong signal.
+            print(f'WARN: corrupt FSS index, rebuilding from disk: {yaml_path}')
+        else:
+            yaml_loaded = True
     else:
         file_structure = {}
 

@@ -59,6 +59,35 @@ class TestFSSScripts(unittest.TestCase):
         self.assertIn('file3.txt', sub_data, 'file3.txt not found in subdirectory index file')
         self.assertEqual(sub_data['file3.txt']['type'], 'file', 'Incorrect type for file3.txt')
 
+    def test_fss_save_recovers_corrupt_index(self):
+        subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
+
+        index_file = self.test_dir / '.index_hash.yaml'
+        self.assertTrue(index_file.exists(), 'Index file not created before corruption')
+
+        with index_file.open('a', encoding='utf-8') as f:
+            f.write('le\n')
+
+        result = subprocess.run(
+            ['python', 'fss_save.py', str(self.test_dir)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, output)
+
+        self.assertIn('WARN', output)
+        self.assertIn('rebuilding from disk', output)
+
+        with index_file.open('r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+
+        self.assertIsInstance(data, dict)
+        self.assertIn('file1.txt', data)
+        self.assertIn('file2.txt', data)
+        self.assertIn('subdir', data)
+
     def test_fss_merge(self):
         # First, run fss_save.py
         subprocess.run(['python', 'fss_save.py', str(self.test_dir)], check=True)
