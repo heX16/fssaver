@@ -141,9 +141,9 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
             r['own'] = f'{user}:{group}'
         except Exception:
             dict_del_item(r, 'own')
-    
+
     add_extra_info_to_record(r, data)
-    
+
     return r
 
 
@@ -186,7 +186,7 @@ def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion
                 (item.name.startswith('.') and g_ignore_linux_hide_files) or
                 (item.name == g_yaml_name)
         ):
-            print('ignore:', item)
+            #print('ignore:', item)
             continue
 
         if item.name in items_to_delete:
@@ -208,7 +208,7 @@ def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion
 
     # Save the updated structure to the YAML file
     if len(file_structure) == 0:
-        print('SKIP EMPTY DIR:', str(yaml_path))
+        #print('SKIP EMPTY DIR:', str(yaml_path))
         saved = False
     else:
         saved = save_to_yaml(file_structure, yaml_path, retries=retries, retries_pause=retries_pause)
@@ -280,13 +280,13 @@ def read_file_and_calculate_md5_retry(file_path: Path, retries: int, retries_pau
 
 def add_extra_info_to_record(record: dict, path: Path) -> None:
     global g_exif_enabled
-    
+
     if not g_exif_enabled:
         return
-    
+
     if not path.is_file():
         return
-    
+
     ext = path.suffix.lower()
     if ext in ('.jpg', '.jpeg'):
         add_exif_info_to_record(record, path)
@@ -294,7 +294,7 @@ def add_extra_info_to_record(record: dict, path: Path) -> None:
 
 def main():
     global g_exif_enabled
-    
+
     arguments = docopt(__doc__)
 
     start_directory = arguments['<start_directory>']

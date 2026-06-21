@@ -1,17 +1,41 @@
 
+# hidden files - is read only! (NTFS)
 
-# 1. новый режим fss_compare.py - сравнить один каталог и один fss файл
+```
+ignore: D:\heXor\Photos\PhotoFromInet\PixelArt\Games pixels\.index_hash.yaml
+ERROR: I/O error(13)! Retrying in 1 seconds... File: D:\heXor\Photos\PhotoFromInet\PixelArt\Games pixels\.index_hash.yaml. Error: Permission denied
+ERROR: I/O error(13)! File: D:\heXor\Photos\PhotoFromInet\PixelArt\Games pixels\.index_hash.yaml. Error: Permission denied
+Traceback (most recent call last):
+  File "H:\Pyt\fssaver\fss_save.py", line 315, in <module>
+    main()
+    ~~~~^^
+  File "H:\Pyt\fssaver\fss_save.py", line 309, in main
+    create_file_structure(start_path, no_update_md5=no_update_md5, recursion=recursion, retries=retries, retries_pause=retries_pause)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 229, in create_file_structure
+    create_file_structure(dir_path_recursion, no_update_md5=no_update_md5, recursion=recursion,
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        retries=retries, retries_pause=retries_pause)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 229, in create_file_structure
+    create_file_structure(dir_path_recursion, no_update_md5=no_update_md5, recursion=recursion,
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        retries=retries, retries_pause=retries_pause)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 229, in create_file_structure
+    create_file_structure(dir_path_recursion, no_update_md5=no_update_md5, recursion=recursion,
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        retries=retries, retries_pause=retries_pause)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\Pyt\fssaver\fss_save.py", line 214, in create_file_structure
+    saved = save_to_yaml(file_structure, yaml_path, retries=retries, retries_pause=retries_pause)
+  File "H:\Pyt\fssaver\fss_utils.py", line 144, in save_to_yaml
+    with open(output_path, 'w', encoding=encoding) as f:
+         ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'D:\\heXor\\Photos\\PhotoFromInet\\PixelArt\\Games pixels\\.index_hash.yaml'
 
-важная фича - для проверки на повреждение файлов.
+```
 
-просто делает сравнение одного каталога и одного fss локального файла ".index_hash.yaml".
-
-фактически это работает так:
-в памяти создается "fss объект" - слепок каталога.
-и затем запускается обычное сравнение указанного файла ".index_hash.yaml" и этого "fss объекта".
-
-Это похоже как если бы сравнивались два файла ".index_hash.yaml".
-Но в этом случае один файл создается на лету и хранится в памяти.
 
 
 # CRC32
@@ -21,9 +45,6 @@
   CRC32 середины файла (4кб)
 
 оффсет середины файла - с выравниванием "вниз" (округление вниз) на 4кб.
-
-# Exif - время создания фото
-
 
 # 1. новая фича - кол-во файлов в директории.
 
@@ -45,7 +66,6 @@
 # 2. новая программа - fss_to_sheet - конвертирование в таблицу
 
 Конвертирует в таблицу ODS формата.
-Имеет обратный режим - из таблицы в fss формат.
 
 # 1. новая программа - синхронизация времени и аттрибутов
 
@@ -80,7 +100,7 @@
 
 
 
-# 2025-06 BUG
+# 2025-06 BUG `fromtimestamp` Invalid argument
 
 ```
 ignore: D:\heXor\Com\!SORT_SUPER_CHAOS\Projects2\AutoCranePLC\examples\ru-keys\.index_hash.yaml
