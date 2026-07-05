@@ -110,13 +110,9 @@ class TestFSSScripts(unittest.TestCase):
             stats2 = FssSaveStats()
             create_file_structure(root, stats2)
 
-            with index_file.open('r', encoding='utf-8') as f:
-                data_after = yaml.safe_load(f)
-
-            self.assertNotIn(
-                'only_child',
-                data_after or {},
-                'deleted subdir must be removed from parent index',
+            self.assertFalse(
+                index_file.exists(),
+                'stale index file must be removed when directory becomes empty',
             )
             self.assertGreaterEqual(stats2.empty_dirs, 1)
             self.assertGreaterEqual(stats2.yaml_updated, 1)

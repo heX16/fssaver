@@ -230,9 +230,21 @@ def create_file_structure(
 
     # Save the updated structure to the YAML file
     write_failed = False
+    index_removed = False
     if len(file_structure) == 0:
         stats.empty_dirs += 1
-        saved = False
+        if yaml_path.exists():
+            try:
+                yaml_path.unlink()
+                saved = True
+                index_removed = True
+            except OSError as exc:
+                stats.yaml_write_error += 1
+                write_failed = True
+                print(f'SAVE ERROR: {yaml_path} ({exc})')
+                saved = False
+        else:
+            saved = False
     else:
         try:
             saved = save_to_yaml(file_structure, yaml_path, retries=retries, retries_pause=retries_pause)
@@ -244,7 +256,9 @@ def create_file_structure(
 
     if saved:
         stats.yaml_updated += 1
-        if yaml_loaded:
+        if index_removed:
+            print('DELETE INDEX:', str(yaml_path))
+        elif yaml_loaded:
             print('SAVE UPDATED:', str(yaml_path))
         else:
             print('SAVE NEW:', str(yaml_path))
