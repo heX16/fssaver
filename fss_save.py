@@ -32,6 +32,7 @@ class FssSaveStats:
     yaml_write_error: int = 0
     yaml_corrupt_rebuilt: int = 0
     yaml_unchanged_skipped: int = 0
+    empty_dirs: int = 0
 
     def print_summary(self) -> None:
         print('STATS:')
@@ -39,10 +40,9 @@ class FssSaveStats:
         print(f'  unchanged: {self.yaml_unchanged_skipped}')
         print(f'  write_errors: {self.yaml_write_error}')
         print(f'  corrupt_rebuilt: {self.yaml_corrupt_rebuilt}')
+        print(f'  empty_dirs: {self.empty_dirs}')
 
-g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
-g_ignore_linux_hide_files = True
 g_exif_enabled = True
 
 
@@ -206,13 +206,9 @@ def create_file_structure(
     # Iterate files and collect information
     for item in dir_path.iterdir():
 
-        # TODO: Use igittigitt library for ignore
-        if (
-                (item.is_dir() and item.name == '.git') or
-                (item.name.startswith('.') and g_ignore_linux_hide_files) or
-                (item.name == g_yaml_name)
-        ):
-            #print('ignore:', item)
+        if should_ignore_dir_item(item):
+            # TODO: print('ignore:', item)  - command line argument options
+            # TODO: calc to stats
             continue
 
         if item.name in items_to_delete:
@@ -235,7 +231,7 @@ def create_file_structure(
     # Save the updated structure to the YAML file
     write_failed = False
     if len(file_structure) == 0:
-        #print('SKIP EMPTY DIR:', str(yaml_path))
+        stats.empty_dirs += 1
         saved = False
     else:
         try:

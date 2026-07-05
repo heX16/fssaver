@@ -30,6 +30,26 @@ def is_linux() -> bool:
     """Check if the operating system is Linux."""
     return platform.system().lower() == 'linux'
 
+
+g_yaml_name = '.index_hash.yaml'
+g_ignore_linux_hide_files = True
+
+
+def should_ignore_dir_item(item: Path) -> bool:
+    # TODO: Use igittigitt library for ignore
+    return (
+        (item.is_dir() and item.name == '.git') or
+        (item.name.startswith('.') and g_ignore_linux_hide_files) or
+        (item.name == g_yaml_name)
+    )
+
+
+def dir_is_empty_after_filters(dir_path: Path) -> bool:
+    for item in dir_path.iterdir():
+        if not should_ignore_dir_item(item):
+            return False
+    return True
+
 @contextlib.contextmanager
 def open_with_attribute_handling(filename: str | Path, mode='w'):
     """
