@@ -8,6 +8,7 @@ from datetime import datetime
 import tempfile
 
 from fss_check import count_matching_files_with_topdir_progress, g_yaml_name
+from fss_save import create_file_structure, FssSaveStats
 
 class TestFSSScripts(unittest.TestCase):
     def setUp(self):
@@ -87,6 +88,72 @@ class TestFSSScripts(unittest.TestCase):
         self.assertIn('file1.txt', data)
         self.assertIn('file2.txt', data)
         self.assertIn('subdir', data)
+
+    def test_fss_save_removes_deleted_subdir_when_only_child(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            only_child = root / 'only_child'
+            only_child.mkdir()
+            (only_child / 'a.txt').write_text('content')
+
+            stats1 = FssSaveStats()
+            create_file_structure(root, stats1)
+
+            index_file = root / g_yaml_name
+            self.assertTrue(index_file.exists())
+            with index_file.open('r', encoding='utf-8') as f:
+                data_before = yaml.safe_load(f)
+            self.assertIn('only_child', data_before)
+
+            shutil.rmtree(only_child)
+
+            stats2 = FssSaveStats()
+            create_file_structure(root, stats2)
+
+            with index_file.open('r', encoding='utf-8') as f:
+                data_after = yaml.safe_load(f)
+
+            self.assertNotIn(
+                'only_child',
+                data_after or {},
+                'deleted subdir must be removed from parent index',
+            )
+            self.assertGreaterEqual(stats2.empty_dirs, 1)
+            self.assertGreaterEqual(stats2.yaml_updated, 1)
+
+    def test_fss_save_removes_deleted_subdir_when_siblings_remain(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / 'keep.txt').write_text('keep')
+            subdir = root / 'subdir'
+            subdir.mkdir()
+            (subdir / 'file.txt').write_text('content')
+
+            stats1 = FssSaveStats()
+            create_file_structure(root, stats1)
+
+            index_file = root / g_yaml_name
+            with index_file.open('r', encoding='utf-8') as f:
+                data_before = yaml.safe_load(f)
+            self.assertIn('keep.txt', data_before)
+            self.assertIn('subdir', data_before)
+
+            shutil.rmtree(subdir)
+
+            stats2 = FssSaveStats()
+            create_file_structure(root, stats2)
+
+            with index_file.open('r', encoding='utf-8') as f:
+                data_after = yaml.safe_load(f)
+
+            self.assertIn('keep.txt', data_after)
+            self.assertNotIn(
+                'subdir',
+                data_after,
+                'deleted subdir must be removed when sibling files remain',
+            )
+            self.assertGreaterEqual(stats2.yaml_updated, 1)
+            self.assertEqual(stats2.yaml_unchanged_skipped, 0)
 
     def test_fss_merge(self):
         # First, run fss_save.py
