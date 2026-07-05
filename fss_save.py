@@ -2,7 +2,7 @@
 File Structure to YAML, a separate file for each directory
 
 Usage:
-  fs_structure_to_yaml.py <start_directory> [--no-recursion] [--no-update-md5] [--exif=<exif>] [--retries=<retries>] [--retries-pause=<retries-pause>]
+  fs_structure_to_yaml.py <start_directory> [--no-recursion] [--no-update-md5] [--exif=<exif>] [--print-stat=<print-stat>] [--retries=<retries>] [--retries-pause=<retries-pause>]
   fs_structure_to_yaml.py -h | --help
 
 Options:
@@ -10,6 +10,7 @@ Options:
   --no-update-md5  Don't update MD5 if data changed
   --no-recursion   Do not recurse into directories.
   --exif=<exif>    Enable EXIF extraction for JPG/JPEG files [default: 1]. Use 0/false/no/off to disable.
+  --print-stat=<print-stat>  Print STATS summary at the end [default: 1]. Use 0 to disable.
   --retries=<retries>     Number of retries for reading files [default: 1].
   --retries-pause=<retries-pause>         Pause duration between retries in seconds [default: 1].
 """
@@ -33,10 +34,11 @@ class FssSaveStats:
     yaml_unchanged_skipped: int = 0
 
     def print_summary(self) -> None:
-        print(
-            f'STATS: updated={self.yaml_updated} unchanged={self.yaml_unchanged_skipped} '
-            f'write_errors={self.yaml_write_error} corrupt_rebuilt={self.yaml_corrupt_rebuilt}'
-        )
+        print('STATS:')
+        print(f'  updated: {self.yaml_updated}')
+        print(f'  unchanged: {self.yaml_unchanged_skipped}')
+        print(f'  write_errors: {self.yaml_write_error}')
+        print(f'  corrupt_rebuilt: {self.yaml_corrupt_rebuilt}')
 
 g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
@@ -344,6 +346,7 @@ def main():
     start_path = Path(start_directory)
     no_update_md5 = bool(arguments['--no-update-md5'])
     g_exif_enabled = arguments.get('--exif', '1') != '0'
+    print_stat = arguments.get('--print-stat', '1') != '0'
 
     if start_path.exists() and start_path.is_dir():
         stats = FssSaveStats()
@@ -355,7 +358,8 @@ def main():
             retries=retries,
             retries_pause=retries_pause,
         )
-        stats.print_summary()
+        if print_stat:
+            stats.print_summary()
     else:
         print('The specified path does not exist or is not a directory.')
 
