@@ -63,11 +63,11 @@ def merge_contents(path_to_index_hash: Path, retries: int, retries_pause: int, r
             'path': str(path_to_index_hash),
         }
         return merged_data
-    if not path_to_index_hash.exists():
-        print('WARN: sfs-file not found: ', str(path_to_index_hash))
+    if not path_to_index_hash.exists() and not dir_is_empty_after_filters(path_to_index_hash.parent):
+        print('WARN: fss-file not found: ', str(path_to_index_hash))
         merged_data[str(path_to_index_hash)] = {
             'type': 'error',
-            'error': 'not_found_sfs_file',
+            'error': 'not_found_fss_file',
             'path': str(path_to_index_hash),
         }
         return merged_data
