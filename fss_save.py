@@ -15,6 +15,7 @@ Options:
 """
 
 import os
+from dataclasses import dataclass
 from typing import Tuple
 import yaml
 import hashlib
@@ -22,6 +23,20 @@ from pathlib import Path
 from docopt import docopt
 from datetime import datetime, timezone
 from fss_utils import *
+
+
+@dataclass
+class FssSaveStats:
+    yaml_updated: int = 0
+    yaml_write_error: int = 0
+    yaml_corrupt_rebuilt: int = 0
+    yaml_unchanged_skipped: int = 0
+
+    def print_summary(self) -> None:
+        print(
+            f'STATS: updated={self.yaml_updated} unchanged={self.yaml_unchanged_skipped} '
+            f'write_errors={self.yaml_write_error} corrupt_rebuilt={self.yaml_corrupt_rebuilt}'
+        )
 
 g_yaml_name = '.index_hash.yaml'
 g_chuck_size = 65536
@@ -147,7 +162,14 @@ def update_record(r: dict, data: Path, no_update_md5: bool, retries: int, retrie
     return r
 
 
-def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion: bool = True, retries: int = 1, retries_pause: int = 1):
+def create_file_structure(
+    dir_path: Path,
+    stats: FssSaveStats,
+    no_update_md5: bool = False,
+    recursion: bool = True,
+    retries: int = 1,
+    retries_pause: int = 1,
+):
     if filter_dir(dir_path):
         print('HARDCODED SKIP:', str(dir_path))
         return
@@ -166,9 +188,11 @@ def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion
         if not isinstance(file_structure, dict):
             print(f'WARN: invalid/corrupt FSS index, rebuilding from disk: {yaml_path}')
             file_structure = {}
+            stats.yaml_corrupt_rebuilt += 1
         elif yaml_path.stat().st_size > 0 and file_structure == {}:
             # Parse failure returns return_on_fail={}; non-empty file is a strong signal.
             print(f'WARN: corrupt FSS index, rebuilding from disk: {yaml_path}')
+            stats.yaml_corrupt_rebuilt += 1
         else:
             yaml_loaded = True
     else:
@@ -207,17 +231,27 @@ def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion
 
 
     # Save the updated structure to the YAML file
+    write_failed = False
     if len(file_structure) == 0:
         #print('SKIP EMPTY DIR:', str(yaml_path))
         saved = False
     else:
-        saved = save_to_yaml(file_structure, yaml_path, retries=retries, retries_pause=retries_pause)
+        try:
+            saved = save_to_yaml(file_structure, yaml_path, retries=retries, retries_pause=retries_pause)
+        except OSError as exc:
+            stats.yaml_write_error += 1
+            write_failed = True
+            print(f'SAVE ERROR: {yaml_path} ({exc})')
+            saved = False
 
     if saved:
+        stats.yaml_updated += 1
         if yaml_loaded:
             print('SAVE UPDATED:', str(yaml_path))
         else:
             print('SAVE NEW:', str(yaml_path))
+    elif len(file_structure) > 0 and not write_failed:
+        stats.yaml_unchanged_skipped += 1
 
     # Search directory in list (for recursion)
     for name, content in file_structure.items():
@@ -226,8 +260,14 @@ def create_file_structure(dir_path: Path, no_update_md5: bool = False, recursion
                 dir_path_recursion = dir_path / name
                 if dir_path_recursion.exists() and dir_path_recursion.is_dir():
                     # Recursion!
-                    create_file_structure(dir_path_recursion, no_update_md5=no_update_md5, recursion=recursion,
-                        retries=retries, retries_pause=retries_pause)
+                    create_file_structure(
+                        dir_path_recursion,
+                        stats,
+                        no_update_md5=no_update_md5,
+                        recursion=recursion,
+                        retries=retries,
+                        retries_pause=retries_pause,
+                    )
                 else:
                     print('SKIP NON-EXISTENT DIR:', str(dir_path_recursion))
         file_structure[name] = None  # remove item from memory (for optimization)
@@ -306,7 +346,16 @@ def main():
     g_exif_enabled = arguments.get('--exif', '1') != '0'
 
     if start_path.exists() and start_path.is_dir():
-        create_file_structure(start_path, no_update_md5=no_update_md5, recursion=recursion, retries=retries, retries_pause=retries_pause)
+        stats = FssSaveStats()
+        create_file_structure(
+            start_path,
+            stats,
+            no_update_md5=no_update_md5,
+            recursion=recursion,
+            retries=retries,
+            retries_pause=retries_pause,
+        )
+        stats.print_summary()
     else:
         print('The specified path does not exist or is not a directory.')
 
